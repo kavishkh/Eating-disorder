@@ -1,4 +1,9 @@
 Eating Disorder Recovery App 🖤⚪
+
+
+
+
+
 Overview
 The Eating Disorder Recovery App is an AI-powered platform designed to help users track their progress, receive personalized recommendations, and connect with professional support. With an elegant black-and-white theme, smooth animations, and interactive 3D visuals, the app offers a calming and engaging recovery journey.
 
