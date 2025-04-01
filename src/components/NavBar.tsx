@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -26,35 +25,35 @@ const NavBar: React.FC<NavBarProps> = ({ userName = "User" }) => {
   };
 
   return (
-    <header className="w-full border-b border-gray-200 bg-white">
+    <header className="w-full border-b border-gray-200 bg-black shadow-sm z-10">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/dashboard" className="font-semibold text-xl">
-          <span className="text-black">Mindful</span>
-          <span className="text-gray-500">Recovery</span>
+          <span className="text-white">Mindful</span>
+          <span className="text-gray-100">Recovery</span>
         </Link>
         
         <nav className="hidden md:flex items-center space-x-8">
           <Link 
             to="/dashboard" 
-            className="text-gray-700 hover:text-black hover-underline-animation transition-colors"
+            className="text-blue-500 hover:text-white hover-underline-animation transition-colors "
           >
             Dashboard
           </Link>
           <Link 
             to="/chat" 
-            className="text-gray-700 hover:text-black hover-underline-animation transition-colors"
+            className="text-blue-500 hover:text-white hover-underline-animation transition-colors"
           >
             AI Support
           </Link>
           <Link 
             to="/education" 
-            className="text-gray-700 hover:text-black hover-underline-animation transition-colors"
+            className="text-blue-500 hover:text-white hover-underline-animation transition-colors"
           >
             Education
           </Link>
           <Link 
             to="/progress" 
-            className="text-gray-700 hover:text-black hover-underline-animation transition-colors"
+            className="text-blue-500 hover:text-white hover-underline-animation transition-colors"
           >
             Progress
           </Link>
@@ -63,11 +62,14 @@ const NavBar: React.FC<NavBarProps> = ({ userName = "User" }) => {
         <div className="flex items-center space-x-4">
           <button 
             onClick={handleNotificationClick}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-full hover:bg-gray-100 hover:text-black transition-colors"
           >
             <Bell size={20} />
           </button>
-          <Link to="/profile" className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <Link 
+            to="/profile" 
+            className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100 hover:text-black transition-colors"
+          >
             <User size={20} />
             <span className="hidden sm:inline text-sm font-medium">{userName}</span>
           </Link>

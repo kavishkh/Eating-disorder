@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import OnboardingLayout from "@/components/OnboardingLayout";
@@ -52,8 +51,10 @@ const Onboarding2 = () => {
             <Label
               htmlFor={option}
               className={cn(
-                "flex cursor-pointer rounded-lg border border-gray-200 p-4 hover:bg-gray-50 hover:border-gray-300 peer-focus-visible:ring-2 peer-focus-visible:ring-black transition-all",
-                gender === option && "border-black bg-gray-50"
+                "flex cursor-pointer rounded-lg border border-gray-200 p-4 hover:bg-gray-700 hover:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-black transition-all",
+                gender === option
+                  ? "border-black bg-white text-black"
+                  : "bg-black text-white"
               )}
             >
               {option}
