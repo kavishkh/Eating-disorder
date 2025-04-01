@@ -2,48 +2,48 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
-
-    --primary: 0 0% 0%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 0 0% 95%;
-    --secondary-foreground: 0 0% 0%;
-
-    --muted: 0 0% 90%;
-    --muted-foreground: 0 0% 40%;
-
-    --accent: 0 0% 95%;
-    --accent-foreground: 0 0% 0%;
-
-    --destructive: 0 84% 60%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    
+    --card: 0 0% 3%;
+    --card-foreground: 0 0% 100%;
+    
+    --popover: 0 0% 3%;
+    --popover-foreground: 0 0% 100%;
+    
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    
+    --secondary: 0 0% 8%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 70%;
+    
+    --accent: 0 0% 8%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 0 0% 85%;
-    --input: 0 0% 85%;
-    --ring: 0 0% 0%;
-
-    --radius: 0.5rem;
+    
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 213 100% 50%;
+    
+    --radius: 0.75rem;
   }
 
   * {
-    @apply border-border;
-    font-family: 'Inter', sans-serif;
+    @apply border-border selection:bg-blue-500/20 selection:text-white;
+    font-family: 'Poppins', sans-serif;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-black text-white min-h-screen;
   }
   
   .transition-all {
@@ -57,23 +57,23 @@
   }
 
   .card {
-    @apply bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all p-6;
+    @apply bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] shadow-lg hover:shadow-xl transition-all p-6;
   }
 
   .button-primary {
-    @apply px-6 py-3 bg-black text-white rounded-lg transition-all hover:bg-gray-800 flex items-center justify-center font-medium;
+    @apply px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg transition-all hover:from-blue-600 hover:to-blue-700 flex items-center justify-center font-medium shadow-md hover:shadow-lg transform hover:-translate-y-1;
   }
 
   .button-secondary {
-    @apply px-6 py-3 bg-white text-black border border-black rounded-lg transition-all hover:bg-gray-100 flex items-center justify-center font-medium;
+    @apply px-6 py-3 bg-[#0a0a0a] text-blue-400 border border-[#1a1a1a] rounded-lg transition-all hover:bg-[#111] flex items-center justify-center font-medium shadow-sm hover:shadow-md transform hover:-translate-y-1;
   }
 
   .button-outline {
-    @apply px-6 py-3 bg-transparent text-black border border-gray-300 rounded-lg transition-all hover:border-black flex items-center justify-center font-medium;
+    @apply px-6 py-3 bg-transparent text-blue-400 border border-[#1a1a1a] rounded-lg transition-all hover:border-blue-500 hover:bg-[#111] flex items-center justify-center font-medium transform hover:-translate-y-1;
   }
 
   .input-field {
-    @apply px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition-all w-full;
+    @apply px-4 py-3 border border-[#1a1a1a] bg-[#0a0a0a] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all w-full text-white;
   }
 
   .checkbox-container {
@@ -81,7 +81,7 @@
   }
 
   .section-title {
-    @apply text-2xl md:text-3xl font-semibold mb-4;
+    @apply text-2xl md:text-3xl font-semibold mb-4 bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent;
   }
 
   .animate-enter {
@@ -99,16 +99,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #0a0a0a;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #1d4ed8;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #2563eb;
 }
 
 /* Animated underline effect */
@@ -124,7 +124,7 @@
   height: 1px;
   bottom: 0;
   left: 0;
-  background-color: currentColor;
+  background-color: #2563eb;
   transform-origin: bottom right;
   transition: transform 0.3s ease-out;
 }
@@ -134,30 +134,76 @@
   transform-origin: bottom left;
 }
 
-.fade-in-top {
-  animation: fadeInTop 0.5s ease-in-out;
+/* ... keep existing code (animations, keyframes) */
+
+.card-animated {
+  transition: all 0.3s ease;
 }
 
-@keyframes fadeInTop {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.card-animated:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.gradient-text {
+  @apply bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent;
 }
 
-@keyframes pulse {
+.btn-gradient {
+  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white transition-all duration-300;
+}
+
+.btn-gradient:hover {
+  @apply from-blue-600 to-blue-700 shadow-lg;
+}
+
+.nav-gradient {
+  @apply bg-black;
+}
+
+/* Glow effect */
+.glow-effect {
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.5);
+}
+
+.glow-effect:hover {
+  box-shadow: 0 0 25px rgba(37, 99, 235, 0.7);
+}
+
+/* Loading animation */
+@keyframes blue-pulse {
   0%, 100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: .7;
+    opacity: 0.6;
+    transform: scale(0.8);
   }
+}
+
+.blue-loader {
+  @apply relative flex items-center justify-center;
+}
+
+.blue-loader::before,
+.blue-loader::after {
+  content: '';
+  @apply absolute rounded-full bg-blue-500;
+  animation: blue-pulse 1.5s infinite;
+}
+
+.blue-loader::before {
+  @apply w-8 h-8;
+  animation-delay: -0.3s;
+}
+
+.blue-loader::after {
+  @apply w-8 h-8;
+  animation-delay: -0.15s;
+}
+
+.blue-loader > div {
+  @apply w-8 h-8 rounded-full bg-blue-600;
+  animation: blue-pulse 1.5s infinite;
 }

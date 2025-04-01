@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -52,11 +51,8 @@ const Dashboard = () => {
     );
   };
   
-  // Calculate progress
-  const completedGoals = goals.filter((goal) => goal.isCompleted).length;
-  const progressPercentage = goals.length > 0 
-    ? Math.round((completedGoals / goals.length) * 100) 
-    : 0;
+  // Set progress to 0
+  const progressPercentage = 0;
   
   if (isLoading) {
     return (
@@ -83,23 +79,23 @@ const Dashboard = () => {
           <ProgressCard 
             title="Overall Progress" 
             description="Your recovery journey progress based on completed goals" 
-            percentage={progressPercentage}
+            percentage={0}
             className="md:col-span-3"
           />
           <ProgressCard 
             title="Weekly Check-ins" 
-            description="You've completed 3/5 check-ins this week" 
-            percentage={60}
+            description="You've completed 0/5 check-ins this week" 
+            percentage={0}
           />
           <ProgressCard 
             title="Mindfulness Sessions" 
-            description="You've completed 2/7 sessions this week" 
-            percentage={28}
+            description="You've completed 0/7 sessions this week" 
+            percentage={0}
           />
           <ProgressCard 
             title="Educational Content" 
-            description="You've watched 4/10 recommended videos" 
-            percentage={40}
+            description="You've watched 0/10 recommended videos" 
+            percentage={0}
           />
         </div>
         

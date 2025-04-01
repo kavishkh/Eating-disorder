@@ -16,27 +16,27 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   totalSteps,
 }) => {
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-white">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-black">
       <div className="w-full max-w-md">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               Step {step} of {totalSteps}
             </span>
-            <span className="text-sm font-medium">
+            <span className="text-sm font-medium text-gray-300">
               {Math.round((step / totalSteps) * 100)}%
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-[#111] rounded-full h-2">
             <div
-              className="bg-black rounded-full h-2 transition-all duration-300 ease-in-out"
+              className="bg-gradient-to-r from-blue-500 to-blue-400 rounded-full h-2 transition-all duration-300 ease-in-out"
               style={{ width: `${(step / totalSteps) * 100}%` }}
             ></div>
           </div>
         </div>
         <div
           className={cn(
-            "bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-fade-in",
+            "bg-[#0a0a0a] rounded-xl p-6 sm:p-8 shadow-lg border border-[#1a1a1a] animate-fade-in text-white",
             className
           )}
         >

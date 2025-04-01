@@ -218,49 +218,49 @@ const Progress = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Mood Dialog */}
+        {/* Enhanced Mood Dialog with attractive colors */}
         <Dialog open={showMoodDialog} onOpenChange={setShowMoodDialog}>
-          <DialogContent className="bg-gradient-to-r from-purple-50 to-pink-50 border-none">
+          <DialogContent className="bg-white border-none rounded-xl shadow-xl max-w-md mx-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">
+              <DialogTitle className="text-center text-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
                 How are you feeling after your meal today?
               </DialogTitle>
             </DialogHeader>
             <div className="py-6 flex flex-col items-center">
               <div className="flex gap-6 justify-center mt-4">
                 <button 
-                  className="mood-button bg-gradient-to-br from-green-400 to-green-500 hover:from-green-500 hover:to-green-600" 
+                  className="mood-button bg-gradient-to-br from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 text-white shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl"
                   onClick={() => handleMoodSelection("happy")}
                 >
                   <Smile size={40} className="text-white mb-1" />
-                  <span className="text-white">Good</span>
+                  <span className="text-white font-medium">Good</span>
                 </button>
                 
                 <button 
-                  className="mood-button bg-gradient-to-br from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600" 
+                  className="mood-button bg-gradient-to-br from-amber-300 to-orange-500 hover:from-amber-400 hover:to-orange-600 text-white shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl" 
                   onClick={() => handleMoodSelection("neutral")}
                 >
                   <Meh size={40} className="text-white mb-1" />
-                  <span className="text-white">Neutral</span>
+                  <span className="text-white font-medium">Neutral</span>
                 </button>
                 
                 <button 
-                  className="mood-button bg-gradient-to-br from-pink-400 to-red-500 hover:from-pink-500 hover:to-red-600" 
+                  className="mood-button bg-gradient-to-br from-purple-400 to-pink-500 hover:from-purple-500 hover:to-pink-600 text-white shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl" 
                   onClick={() => handleMoodSelection("sad")}
                 >
                   <Frown size={40} className="text-white mb-1" />
-                  <span className="text-white">Difficult</span>
+                  <span className="text-white font-medium">Difficult</span>
                 </button>
               </div>
               
-              <p className="text-gray-500 mt-8 text-center max-w-sm">
+              <p className="text-gray-600 mt-8 text-center max-w-sm px-4">
                 Tracking how you feel after meals can help identify patterns and improve your recovery journey.
               </p>
               
               <Button 
                 variant="outline" 
                 onClick={() => setShowMoodDialog(false)} 
-                className="mt-6 border-gray-300"
+                className="mt-6 border-gray-300 hover:bg-gray-100"
               >
                 Skip for now
               </Button>
