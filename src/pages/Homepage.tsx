@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
-const Index = () => {
+const Homepage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   
@@ -82,4 +82,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Homepage;
