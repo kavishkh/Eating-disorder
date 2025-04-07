@@ -3,6 +3,7 @@ import React from 'react';
 import { CardContainer } from '@/components/ui/card-container';
 import { MessageSquare, Lightbulb, Box } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { motion } from 'framer-motion';
 
 interface Activity {
   id: string;
@@ -88,14 +89,17 @@ export const RecentActivities: React.FC = () => {
   return (
     <CardContainer 
       title="Recent Activities" 
-      variant="gradient"
+      variant="frosted"
       className="card-hover"
     >
       <div className="space-y-4">
-        {activities.map((activity) => (
-          <div 
+        {activities.map((activity, index) => (
+          <motion.div 
             key={activity.id} 
             className="flex items-start gap-3 border-b border-border pb-3 last:border-0 last:pb-0"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
           >
             <div className={`${getActivityColor(activity.type)} p-2 rounded-full`}>
               {getActivityIcon(activity.type)}
@@ -109,7 +113,7 @@ export const RecentActivities: React.FC = () => {
               </div>
               <p className="text-sm text-muted-foreground">{activity.description}</p>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </CardContainer>

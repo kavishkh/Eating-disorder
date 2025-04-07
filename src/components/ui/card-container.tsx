@@ -10,7 +10,8 @@ interface CardContainerProps {
   contentClassName?: string;
   headerClassName?: string;
   children: ReactNode;
-  variant?: "default" | "gradient" | "glass" | "dark-gradient";
+  variant?: "default" | "gradient" | "glass" | "dark-gradient" | "frosted" | "colorful";
+  onClick?: () => void;
 }
 
 export function CardContainer({
@@ -21,6 +22,7 @@ export function CardContainer({
   headerClassName,
   children,
   variant = "default",
+  onClick,
 }: CardContainerProps) {
   return (
     <Card 
@@ -29,8 +31,11 @@ export function CardContainer({
         variant === "gradient" && "card-gradient",
         variant === "glass" && "glass-card",
         variant === "dark-gradient" && "dark-gradient",
+        variant === "frosted" && "frosted-glass",
+        variant === "colorful" && "colorful-card",
         className
       )}
+      onClick={onClick}
     >
       {(title || description) && (
         <CardHeader className={cn("pb-3", headerClassName)}>

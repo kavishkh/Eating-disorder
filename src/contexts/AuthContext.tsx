@@ -1,18 +1,20 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from "sonner";
+import { UserProfile } from '@/types';
 
 interface User {
   id: string;
   name: string;
   email: string;
   isOnboarded: boolean;
+  gender?: UserProfile['gender'];
 }
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, gender?: UserProfile['gender']) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
@@ -41,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, gender?: UserProfile['gender']) => {
     setLoading(true);
     try {
       // Mock API call - would be replaced with actual authentication API
@@ -53,6 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: email.split('@')[0],
         email,
         isOnboarded: false,
+        gender,
       };
       
       setCurrentUser(user);

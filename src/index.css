@@ -115,4 +115,33 @@
   .text-gradient-dark {
     @apply bg-gradient-to-r from-mindful-primary via-white/90 to-mindful-tertiary bg-clip-text text-transparent;
   }
+
+  /* Styles for colorful UI and frosted glass */
+  .frosted-glass {
+    @apply backdrop-blur-md bg-white/10 border border-white/20 shadow-lg dark:bg-black/20 dark:border-white/10;
+  }
+
+  .colorful-card {
+    @apply bg-gradient-to-br from-mindful-pink/30 via-mindful-lavender/30 to-mindful-mint/30 dark:from-mindful-primary/20 dark:via-purple-600/20 dark:to-blue-600/20;
+  }
+
+  .colorful-border {
+    @apply border border-transparent;
+    background: linear-gradient(to right, hsl(var(--background)), hsl(var(--background))) padding-box,
+                linear-gradient(to right, #9b87f5, #7E69AB, #6E59A5) border-box;
+  }
+
+  .glow-effect {
+    @apply relative;
+  }
+
+  .glow-effect::after {
+    content: '';
+    @apply absolute inset-0 rounded-lg opacity-0 transition-opacity blur-xl;
+    background: radial-gradient(circle, rgba(155,135,245,0.3) 0%, rgba(155,135,245,0) 70%);
+  }
+
+  .glow-effect:hover::after {
+    @apply opacity-100;
+  }
 }

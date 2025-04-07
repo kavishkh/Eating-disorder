@@ -11,10 +11,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CardContainer } from '@/components/ui/card-container';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  gender: z.enum(['male', 'female', 'non-binary', 'prefer-not-to-say', 'other']).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -30,6 +33,7 @@ const Login = () => {
     defaultValues: {
       email: '',
       password: '',
+      gender: undefined,
     },
   });
 
@@ -38,7 +42,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      await login(values.email, values.password);
+      await login(values.email, values.password, values.gender);
       navigate('/dashboard');
     } catch (err) {
       setError('Failed to sign in. Please check your credentials.');
@@ -48,14 +52,14 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-secondary/30">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="gradient-heading text-3xl font-bold">Mindful Model</h1>
           <p className="text-muted-foreground">Welcome back</p>
         </div>
 
-        <Card>
+        <CardContainer variant="frosted">
           <CardHeader>
             <CardTitle>Login</CardTitle>
             <CardDescription>
@@ -99,6 +103,31 @@ const Login = () => {
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gender (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select your gender" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="non-binary">Non-binary</SelectItem>
+                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
@@ -120,7 +149,7 @@ const Login = () => {
               </Link>
             </div>
           </CardFooter>
-        </Card>
+        </CardContainer>
       </div>
     </div>
   );

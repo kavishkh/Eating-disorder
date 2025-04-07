@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { motion } from 'framer-motion';
 
 const MobileLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -23,21 +24,23 @@ const MobileLayout: React.FC = () => {
   // Emergency help button that stays visible
   const EmergencyHelp = () => (
     <div className="fixed top-4 right-4 z-50">
-      <Button 
-        variant="destructive"
-        size="sm"
-        className="rounded-full px-4 shadow-lg animate-pulse-soft"
-        onClick={() => {
-          navigate('/emergency');
-        }}
-      >
-        Get Help Now
-      </Button>
+      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+        <Button 
+          variant="destructive"
+          size="sm"
+          className="rounded-full px-4 shadow-lg animate-pulse-soft frosted-glass"
+          onClick={() => {
+            navigate('/emergency');
+          }}
+        >
+          Get Help Now
+        </Button>
+      </motion.div>
     </div>
   );
   
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen">
       {/* Safety button */}
       <EmergencyHelp />
       
@@ -49,16 +52,18 @@ const MobileLayout: React.FC = () => {
       </ScrollArea>
       
       {/* Navigation bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background dark-glass-card h-16 px-1 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 frosted-glass h-16 px-1 shadow-lg">
         <div className="flex items-center justify-around h-full">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
             
             return (
-              <button
+              <motion.button
                 key={item.path}
                 onClick={() => navigate(item.path)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
                 className={cn(
                   "flex flex-col items-center justify-center px-2 py-1 rounded-lg transition-all",
                   isActive 
@@ -76,7 +81,7 @@ const MobileLayout: React.FC = () => {
                   )}
                 </div>
                 <span className="text-xs mt-1">{item.label}</span>
-              </button>
+              </motion.button>
             );
           })}
         </div>

@@ -1,49 +1,26 @@
 
-export interface Lesson {
-  id: string;
-  title: string;
-  description: string;
-  duration: string;
-  progress: number;
-  category: string;
-  completed: boolean;
-  thumbnail: string;
-}
-
 export interface Resource {
   id: string;
   title: string;
   description: string;
-  category: string;
   url: string;
-  icon: string;
+  type: 'video' | 'article' | 'book' | 'website' | 'directory' | 'guide';
+  imageUrl?: string;
+  category?: string;
 }
 
-export interface UserGoal {
+export interface Lesson {
   id: string;
   title: string;
-  description: string;
-  progress: number;
-  createdAt: string;
+  description?: string;
+  duration: string;
+  level?: 'beginner' | 'intermediate' | 'advanced';
+  imageUrl?: string;
+  category?: string;
+  completed?: boolean;
+  thumbnail?: string;
 }
 
-export interface UserMood {
-  mood: string;
-  timestamp: string;
-}
-
-export interface UserActivity {
-  id: string;
-  type: 'chat' | 'learning' | 'visualization';
-  title: string;
-  description: string;
-  timestamp: Date;
-}
-
-export interface ThemeColors {
-  primary: string;
-  secondary: string;
-  accent: string;
-  background: string;
-  text: string;
+export interface UserProfile {
+  gender?: 'male' | 'female' | 'non-binary' | 'prefer-not-to-say' | 'other';
 }
