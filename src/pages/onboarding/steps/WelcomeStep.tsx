@@ -50,7 +50,7 @@ const WelcomeStep: React.FC = () => {
         </div>
       </div>
       
-      <div className="bg-mindful-neutral p-4 rounded-lg">
+      <div className="bg-mindful-neutral p-4 rounded-lg text-purple-900">
         <p className="text-sm">
           Let's start by setting up your profile to create the most helpful experience for you.
         </p>

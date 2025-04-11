@@ -66,7 +66,7 @@ const ConcernsStep: React.FC<ConcernsStepProps> = ({ concerns, setConcerns }) =>
       )}
       
       {concerns.length > 0 && (
-        <div className="bg-mindful-neutral p-4 rounded-lg">
+        <div className="bg-mindful-neutral p-4 rounded-lg text-purple-950">
           <p className="font-medium mb-2">Your selected concerns:</p>
           <ul className="list-disc list-inside text-sm space-y-1">
             {concerns.map((concern) => (

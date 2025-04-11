@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { CardContainer } from '@/components/ui/card-container';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { db } from '@/services/databaseService';
 
 interface MoodOption {
   emoji: string;
@@ -12,36 +13,59 @@ interface MoodOption {
   value: number;
 }
 
+export interface MoodData {
+  day: string;
+  value: number;
+}
+
 export const MoodTracker: React.FC = () => {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   
   const moods: MoodOption[] = [
     { emoji: '😞', label: 'Struggling', color: 'bg-mindful-danger/20', darkColor: 'bg-mindful-danger/30', value: 1 },
-    { emoji: '😐', label: 'Neutral', color: 'bg-mindful-neutral/20', darkColor: 'bg-mindful-neutral/30', value: 2 },
+    { emoji: '😐', label: 'Neutral', color: 'bg-mindful-neutral/20', darkColor: 'bg-mindful-neutral/30', value: 3 },
     { emoji: '🙂', label: 'Good', color: 'bg-mindful-info/20', darkColor: 'bg-mindful-info/30', value: 4 },
     { emoji: '😀', label: 'Great', color: 'bg-mindful-success/20', darkColor: 'bg-mindful-success/30', value: 5 },
   ];
   
-  const handleMoodSelect = (mood: MoodOption) => {
+  useEffect(() => {
+    // Check if we have a mood stored for today
+    const checkTodayMood = async () => {
+      const weekMoods = await db.getMoodForWeek();
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+      
+      if (weekMoods[today] > 0) {
+        const selectedOption = moods.find(m => m.value === weekMoods[today]);
+        if (selectedOption) {
+          setSelectedMood(selectedOption.label);
+        }
+      }
+    };
+    
+    checkTodayMood();
+  }, []);
+  
+  const handleMoodSelect = async (mood: MoodOption) => {
     setSelectedMood(mood.label);
     
-    // Save mood to localStorage for demo purposes
-    const today = new Date();
-    const day = today.toLocaleDateString('en-US', { weekday: 'short' });
+    // Save mood to database
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    await db.addMood(mood.value, today);
     
-    // Get existing history or create new
-    const moodHistory = localStorage.getItem('moodHistory') 
-      ? JSON.parse(localStorage.getItem('moodHistory') || '{}') 
-      : {};
+    // Also add a progress record for mental health
+    await db.addProgressRecord('mental_health', mood.value * 20); // Convert 1-5 scale to percentage
     
-    // Update today's mood
-    moodHistory[day] = mood.value;
+    // Generate updated mood data for chart
+    const moodHistory = await db.getMoodForWeek();
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     
-    // Save back to localStorage
-    localStorage.setItem('moodHistory', JSON.stringify(moodHistory));
+    const updatedMoodData: MoodData[] = days.map(d => {
+      return { day: d, value: moodHistory[d] || 0 };
+    });
+
+    localStorage.setItem('moodChartData', JSON.stringify(updatedMoodData));
     
     toast.success(`Mood logged: ${mood.label}`);
-    // In a real app, this would save to user's data
   };
   
   return (

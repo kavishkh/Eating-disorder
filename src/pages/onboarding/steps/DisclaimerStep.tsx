@@ -22,7 +22,7 @@ const DisclaimerStep: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 ">
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Important Information</h2>
         <p className="text-muted-foreground">
@@ -44,7 +44,7 @@ const DisclaimerStep: React.FC = () => {
         <h3 className="font-medium mb-2">Emergency Resources</h3>
         <div className="space-y-3">
           {emergencyResources.map((resource) => (
-            <div key={resource.name} className="bg-mindful-neutral p-3 rounded-lg">
+            <div key={resource.name} className="bg-mindful-neutral p-3 rounded-lg text-primary">
               <p className="font-medium">{resource.name}</p>
               <p className="text-primary text-lg font-bold">{resource.phone}</p>
               <p className="text-xs text-muted-foreground">{resource.description}</p>

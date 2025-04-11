@@ -1,17 +1,17 @@
-
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { BookOpen, MessageSquare, Eye, Flag, ArrowRight } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { BookOpen, MessageSquare, Eye, Flag, ArrowRight, ChartLineUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { CardContainer } from '@/components/ui/card-container';
-import { MoodTracker } from '@/components/dashboard/MoodTracker';
+import { MoodTracker, MoodData } from '@/components/dashboard/MoodTracker';
 import { ProgressCircle } from '@/components/dashboard/ProgressCircle';
 import { RecentActivities } from '@/components/dashboard/RecentActivities';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
+import { db } from '@/services/databaseService';
 
 // Generate empty mood data for new users
 const generateEmptyMoodData = () => {
@@ -19,35 +19,47 @@ const generateEmptyMoodData = () => {
   return days.map(day => ({ day, value: 0 }));
 };
 
-// Mock data for returning users' charts
-const sampleMoodData = [
-  { day: 'Mon', value: 3 },
-  { day: 'Tue', value: 2 },
-  { day: 'Wed', value: 4 },
-  { day: 'Thu', value: 3 },
-  { day: 'Fri', value: 5 },
-  { day: 'Sat', value: 4 },
-  { day: 'Sun', value: 4 },
-];
-
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [moodData, setMoodData] = useState(generateEmptyMoodData());
+  const [moodData, setMoodData] = useState<MoodData[]>(generateEmptyMoodData());
   const [isNewUser, setIsNewUser] = useState(true);
+  const [userProfile, setUserProfile] = useState<{ name?: string }>({});
 
   useEffect(() => {
-    // In a real app, we would check if the user has logged moods
-    // For demo purposes, we'll check localStorage
-    const hasMoodHistory = localStorage.getItem('moodHistory');
+    // Load user profile and mood data
+    const initData = async () => {
+      // Get user profile
+      const profile = await db.getUserProfile();
+      setUserProfile(profile);
+      
+      // Check for mood data
+      const weekMoods = await db.getMoodForWeek();
+      
+      // If any mood has been recorded, user is not new
+      const hasMoodRecorded = Object.values(weekMoods).some(value => value > 0);
+      
+      if (hasMoodRecorded) {
+        setIsNewUser(false);
+        
+        // Create mood data for chart
+        const chartData = Object.entries(weekMoods).map(([day, value]) => ({
+          day,
+          value
+        }));
+        
+        // Sort by day of week
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        chartData.sort((a, b) => days.indexOf(a.day) - days.indexOf(b.day));
+        
+        setMoodData(chartData);
+      } else {
+        setMoodData(generateEmptyMoodData());
+        setIsNewUser(true);
+      }
+    };
     
-    if (hasMoodHistory) {
-      setMoodData(sampleMoodData);
-      setIsNewUser(false);
-    } else {
-      setMoodData(generateEmptyMoodData());
-      setIsNewUser(true);
-    }
+    initData();
   }, []);
 
   // Define action cards for quick access
@@ -83,6 +95,14 @@ const Dashboard = () => {
       color: "bg-mindful-peach/30",
       textColor: "text-mindful-primary", 
       path: "/goals"
+    },
+    {
+      title: "Progress",
+      description: "Track your healing journey",
+      icon: ChartLineUp,
+      color: "bg-blue-500/10",
+      textColor: "text-blue-500",
+      path: "/progress"
     }
   ];
 
@@ -98,7 +118,7 @@ const Dashboard = () => {
         <CardContainer variant="frosted" className="mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold">Welcome back, {currentUser?.name}!</h1>
+              <h1 className="text-2xl font-bold">Welcome back, {userProfile.name || 'Friend'}!</h1>
               <p className="text-muted-foreground">
                 {isNewUser 
                   ? "Let's start your healing journey" 
@@ -176,7 +196,7 @@ const Dashboard = () => {
           transition={{ delay: 0.3 }}
         >
           <CardContainer variant="frosted" title="Quick Access" className="mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {actionCards.map((card, index) => {
                 const Icon = card.icon;
                 return (

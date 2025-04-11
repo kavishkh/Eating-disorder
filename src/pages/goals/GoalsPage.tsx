@@ -13,7 +13,6 @@ import {
   Lightbulb,
   X
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { 
@@ -30,91 +29,72 @@ import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { createGoalFromAI, analyzeGoalProgress, generateMultipleGoalSuggestions } from '@/lib/ai-helpers';
-import { AiGeneratedGoal } from '@/types';
+import { AiGeneratedGoal, Goal } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { db } from '@/services/databaseService';
 
-interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  progress: number;
-  createdAt: string;
-  category?: string;
-  difficulty?: string;
-}
-
-const Goals = () => {
-  const { currentUser } = useAuth();
+const GoalsPage = () => {
   const navigate = useNavigate();
-  const [goals, setGoals] = useState<Goal[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('mindfulGoals') || '[]');
-    } catch (error) {
-      console.error('Error loading goals:', error);
-      return [];
-    }
-  });
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-  const [newGoal, setNewGoal] = useState({ title: '', description: '', category: '', difficulty: '' });
+  const [newGoal, setNewGoal] = useState({ title: '', description: '', category: '', difficulty: '' as 'beginner' | 'intermediate' | 'advanced' | '' });
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [goalSuggestions, setGoalSuggestions] = useState<AiGeneratedGoal[]>([]);
   const [progressFeedback, setProgressFeedback] = useState<string>('');
   const [showFeedback, setShowFeedback] = useState(false);
   
-  const handleSaveGoals = (updatedGoals: Goal[]) => {
-    setGoals(updatedGoals);
-    localStorage.setItem('mindfulGoals', JSON.stringify(updatedGoals));
+  useEffect(() => {
+    loadGoals();
+  }, []);
+  
+  const loadGoals = async () => {
+    const loadedGoals = await db.getGoals();
+    setGoals(loadedGoals);
   };
   
-  const handleAddGoal = () => {
+  const handleAddGoal = async () => {
     if (!newGoal.title.trim()) {
       toast.error('Please enter a goal title');
       return;
     }
     
-    const goal: Goal = {
-      id: `goal-${Date.now()}`,
+    await db.addGoal({
       title: newGoal.title,
       description: newGoal.description,
       progress: 0,
-      createdAt: new Date().toISOString(),
       category: newGoal.category || undefined,
       difficulty: newGoal.difficulty || undefined
-    };
+    });
     
-    const updatedGoals = [...goals, goal];
-    handleSaveGoals(updatedGoals);
+    loadGoals();
     setNewGoal({ title: '', description: '', category: '', difficulty: '' });
     setIsAddDialogOpen(false);
     toast.success('Goal added successfully');
     
-    // Update goal progress data in localStorage for the dashboard
+    // Update goal progress data
     const progressData = { progress: 0, lastUpdate: new Date().toISOString() };
     localStorage.setItem('mindfulProgressData', JSON.stringify(progressData));
   };
   
-  const handleEditGoal = () => {
+  const handleEditGoal = async () => {
     if (!editingGoal || !editingGoal.title.trim()) {
       toast.error('Please enter a goal title');
       return;
     }
     
-    const updatedGoals = goals.map(g => 
-      g.id === editingGoal.id ? editingGoal : g
-    );
-    
-    handleSaveGoals(updatedGoals);
+    await db.updateGoal(editingGoal.id, editingGoal);
+    loadGoals();
     setEditingGoal(null);
     setIsEditDialogOpen(false);
     toast.success('Goal updated successfully');
   };
   
-  const handleDeleteGoal = (id: string) => {
-    const updatedGoals = goals.filter(goal => goal.id !== id);
-    handleSaveGoals(updatedGoals);
+  const handleDeleteGoal = async (id: string) => {
+    await db.deleteGoal(id);
+    loadGoals();
     toast.success('Goal deleted');
   };
   
@@ -122,13 +102,10 @@ const Goals = () => {
     const currentGoal = goals.find(g => g.id === id);
     if (!currentGoal) return;
     
-    const updatedGoals = goals.map(goal => 
-      goal.id === id ? { ...goal, progress } : goal
-    );
+    await db.updateGoal(id, { progress });
+    loadGoals();
     
-    handleSaveGoals(updatedGoals);
-    
-    // Update progress data in localStorage for the dashboard
+    // Update progress data for the dashboard
     if (progress > 0) {
       const progressData = { 
         progress, 
@@ -420,7 +397,7 @@ const Goals = () => {
                   id="difficulty"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   value={newGoal.difficulty}
-                  onChange={(e) => setNewGoal({...newGoal, difficulty: e.target.value})}
+                  onChange={(e) => setNewGoal({...newGoal, difficulty: e.target.value as 'beginner' | 'intermediate' | 'advanced' | ''})}
                 >
                   <option value="">Select difficulty</option>
                   <option value="beginner">Beginner</option>
@@ -508,7 +485,7 @@ const Goals = () => {
                     id="edit-difficulty"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     value={editingGoal.difficulty || ''}
-                    onChange={(e) => setEditingGoal({...editingGoal, difficulty: e.target.value})}
+                    onChange={(e) => setEditingGoal({...editingGoal, difficulty: e.target.value as 'beginner' | 'intermediate' | 'advanced' | undefined})}
                   >
                     <option value="">Select difficulty</option>
                     <option value="beginner">Beginner</option>
@@ -638,4 +615,4 @@ const Goals = () => {
   );
 };
 
-export default Goals;
+export default GoalsPage;
