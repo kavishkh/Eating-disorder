@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AppLayout from "../components/AppLayout";
+import GoalsDialog from "../components/GoalsDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -14,6 +15,7 @@ import {
   Calendar,
   ArrowRight
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Mock mood data
 const mockMoodData = [
@@ -39,18 +41,66 @@ const quotes = [
 ];
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateUserProfile } = useAuth();
   const [quote, setQuote] = useState("");
   const [todayMood, setTodayMood] = useState<number | null>(null);
+  const [isGoalsDialogOpen, setIsGoalsDialogOpen] = useState(false);
+  const [userGoals, setUserGoals] = useState<string[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Get random quote
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setQuote(randomQuote);
     
-    // Get today's mood from mock data
-    setTodayMood(mockMoodData[mockMoodData.length - 1].value);
-  }, []);
+    // Get today's mood from localStorage
+    const storedMoods = localStorage.getItem('moodHistory');
+    if (storedMoods) {
+      try {
+        const moodHistory = JSON.parse(storedMoods);
+        if (moodHistory.length > 0) {
+          const today = new Date().toISOString().split('T')[0];
+          const todayEntry = moodHistory.find((entry: any) => entry.date === today);
+          if (todayEntry) {
+            setTodayMood(todayEntry.mood);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to parse mood history:", error);
+      }
+    }
+    
+    // Load user goals
+    if (currentUser?.goals) {
+      setUserGoals(currentUser.goals);
+    } else {
+      // Load from localStorage if not in user profile
+      const storedGoals = localStorage.getItem('userGoals');
+      if (storedGoals) {
+        try {
+          const parsedGoals = JSON.parse(storedGoals);
+          setUserGoals(parsedGoals);
+        } catch (error) {
+          console.error("Failed to parse goals:", error);
+        }
+      }
+    }
+  }, [currentUser]);
+
+  const handleSaveGoals = (goals: string[]) => {
+    setUserGoals(goals);
+    localStorage.setItem('userGoals', JSON.stringify(goals));
+    
+    // Update user profile if authentication context has updateUserProfile function
+    if (updateUserProfile) {
+      updateUserProfile({ goals });
+    }
+    
+    toast({
+      title: "Goals updated",
+      description: "Your goals have been saved successfully"
+    });
+  };
 
   return (
     <AppLayout>
@@ -72,7 +122,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Quote of the day */}
         <Card className="border-healing-200 bg-healing-50 shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-start">
@@ -87,7 +136,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Main features */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="card-hover border-healing-200">
             <CardHeader className="pb-3">
@@ -152,9 +200,7 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Progress section */}
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Goals progress */}
           <Card className="border-healing-200">
             <CardHeader>
               <CardTitle className="flex items-center text-healing-800">
@@ -164,9 +210,9 @@ const Dashboard = () => {
               <CardDescription>Track your progress on recovery goals</CardDescription>
             </CardHeader>
             <CardContent>
-              {currentUser?.goals && currentUser.goals.length > 0 ? (
+              {userGoals && userGoals.length > 0 ? (
                 <ul className="space-y-3">
-                  {currentUser.goals.slice(0, 3).map((goal, index) => (
+                  {userGoals.slice(0, 3).map((goal, index) => (
                     <li key={index} className="flex items-start">
                       <div className="mr-3 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-healing-300 text-xs">
                         {index + 1}
@@ -174,18 +220,25 @@ const Dashboard = () => {
                       <span className="text-sm">{goal}</span>
                     </li>
                   ))}
-                  {currentUser.goals.length > 3 && (
-                    <li className="text-sm text-healing-600 hover:text-healing-800">
-                      <Link to="#" className="flex items-center">
-                        View all goals <ArrowRight className="ml-1 h-3 w-3" />
-                      </Link>
-                    </li>
-                  )}
+                  <li className="text-sm text-healing-600 hover:text-healing-800">
+                    <Button 
+                      variant="ghost" 
+                      className="p-0 h-auto flex items-center text-healing-600 hover:text-healing-800"
+                      onClick={() => setIsGoalsDialogOpen(true)}
+                    >
+                      View all goals <ArrowRight className="ml-1 h-3 w-3" />
+                    </Button>
+                  </li>
                 </ul>
               ) : (
                 <div className="text-center py-6">
                   <p className="text-sm text-gray-500 mb-2">You haven't set any goals yet</p>
-                  <Button variant="outline" size="sm" className="border-healing-300 text-healing-700">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-healing-300 text-healing-700"
+                    onClick={() => setIsGoalsDialogOpen(true)}
+                  >
                     Add a Goal
                   </Button>
                 </div>
@@ -193,7 +246,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Mood chart */}
           <Card className="border-healing-200">
             <CardHeader>
               <CardTitle className="flex items-center text-healing-800">
@@ -228,6 +280,13 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
+      
+      <GoalsDialog
+        open={isGoalsDialogOpen}
+        onOpenChange={setIsGoalsDialogOpen}
+        goals={userGoals}
+        onSaveGoals={handleSaveGoals}
+      />
     </AppLayout>
   );
 };

@@ -1,10 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "../context/AuthContext";
 import {
   Card,
   CardContent,
@@ -22,17 +23,7 @@ import {
   Check,
   CalendarDays,
 } from "lucide-react";
-
-// Mock mood history data
-const mockMoodHistory = [
-  { date: "2025-04-10", mood: 4, note: "Felt calm after practicing mindfulness." },
-  { date: "2025-04-09", mood: 2, note: "Struggled with body image today." },
-  { date: "2025-04-08", mood: 5, note: "Had a good session with my therapist!" },
-  { date: "2025-04-07", mood: 3, note: "Mixed feelings about food choices." },
-  { date: "2025-04-06", mood: 3, note: "Neutral day, practiced self-care." },
-  { date: "2025-04-05", mood: 2, note: "Felt anxious about eating with others." },
-  { date: "2025-04-04", mood: 4, note: "Made progress on my recovery goals." },
-];
+import { MoodEntry } from "@/types/types";
 
 // Mood definitions
 const moodDefinitions = [
@@ -46,9 +37,29 @@ const moodDefinitions = [
 const MoodTrackerPage = () => {
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [note, setNote] = useState("");
-  const [moodHistory, setMoodHistory] = useState(mockMoodHistory);
+  const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { currentUser } = useAuth();
+
+  // Load mood history from local storage on mount
+  useEffect(() => {
+    const storedMoods = localStorage.getItem('moodHistory');
+    if (storedMoods) {
+      try {
+        const parsedMoods = JSON.parse(storedMoods);
+        // Filter moods for current user if logged in
+        const userMoods = currentUser?.id 
+          ? parsedMoods.filter((mood: MoodEntry) => mood.userId === currentUser.id)
+          : parsedMoods;
+        setMoodHistory(userMoods);
+      } catch (error) {
+        console.error("Failed to parse mood history from localStorage:", error);
+        // If parsing fails, start with empty array
+        setMoodHistory([]);
+      }
+    }
+  }, [currentUser]);
 
   const handleSubmit = () => {
     if (selectedMood === null) {
@@ -62,15 +73,56 @@ const MoodTrackerPage = () => {
 
     setIsSubmitting(true);
 
+    const today = new Date().toISOString().split("T")[0];
+    
+    // Check if we already have an entry for today
+    const existingEntryIndex = moodHistory.findIndex(entry => 
+      entry.date === today && entry.userId === (currentUser?.id || 'anonymous')
+    );
+
     // Add new mood entry to history
-    const newEntry = {
-      date: new Date().toISOString().split("T")[0],
+    const newEntry: MoodEntry = {
+      date: today,
       mood: selectedMood,
       note: note,
+      userId: currentUser?.id || 'anonymous',
     };
 
+    let updatedHistory: MoodEntry[];
+    
+    if (existingEntryIndex >= 0) {
+      // Update existing entry
+      updatedHistory = [...moodHistory];
+      updatedHistory[existingEntryIndex] = newEntry;
+    } else {
+      // Add new entry
+      updatedHistory = [newEntry, ...moodHistory];
+    }
+
+    // Simulate API call with setTimeout
     setTimeout(() => {
-      setMoodHistory([newEntry, ...moodHistory]);
+      setMoodHistory(updatedHistory);
+      
+      // Store all moods in localStorage
+      const allStoredMoods = localStorage.getItem('moodHistory');
+      let allMoods: MoodEntry[] = [];
+      
+      try {
+        if (allStoredMoods) {
+          allMoods = JSON.parse(allStoredMoods);
+          // Remove any entries for this user on the same date
+          allMoods = allMoods.filter(entry => 
+            !(entry.date === today && entry.userId === (currentUser?.id || 'anonymous'))
+          );
+        }
+      } catch (error) {
+        console.error("Error parsing stored moods:", error);
+      }
+      
+      // Add the new entry
+      allMoods.push(newEntry);
+      localStorage.setItem('moodHistory', JSON.stringify(allMoods));
+      
       setSelectedMood(null);
       setNote("");
       setIsSubmitting(false);
@@ -85,6 +137,48 @@ const MoodTrackerPage = () => {
   // Get mood details based on value
   const getMoodDetails = (value: number) => {
     return moodDefinitions.find(mood => mood.value === value) || moodDefinitions[2]; // Default to neutral
+  };
+
+  // Get the last 7 days of mood data for the chart
+  const getChartData = () => {
+    // Create an array of the last 7 days for the chart
+    const last7Days = [...Array(7)].map((_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      return date.toISOString().split('T')[0];
+    }).reverse();
+    
+    // Map the dates to mood entries or use a default value
+    return last7Days.map(date => {
+      const entry = moodHistory.find(entry => entry.date === date);
+      return entry || { date, mood: 0, note: "", userId: currentUser?.id || 'anonymous' };
+    });
+  };
+
+  // Get chart data for visualization
+  const chartData = getChartData();
+
+  // Calculate height percentage based on mood value
+  const getMoodHeight = (moodValue: number) => {
+    if (moodValue === 0) return '10%'; // Default height for no entry
+    
+    // Good and Great moods (4,5) go up
+    if (moodValue > 3) {
+      return `${moodValue * 18}%`;
+    }
+    // Neutral mood (3) stays in the middle
+    else if (moodValue === 3) {
+      return '50%';
+    }
+    // Low and Very Low moods (1,2) go down
+    else {
+      return `${moodValue * 15}%`;
+    }
+  };
+
+  // Get baseline position for the chart (middle)
+  const getBaselinePosition = () => {
+    return '50%';
   };
 
   return (
@@ -175,23 +269,42 @@ const MoodTrackerPage = () => {
               <CardDescription>Your mood patterns over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[200px]">
+              <div className="h-[200px] relative">
+                {/* Baseline (neutral line) */}
+                <div 
+                  className="absolute w-full h-px bg-gray-300" 
+                  style={{ top: getBaselinePosition() }}
+                ></div>
+                
                 <div className="flex h-full w-full items-end justify-between">
-                  {moodHistory.slice(0, 7).reverse().map((entry, i) => {
-                    const moodDetail = getMoodDetails(entry.mood);
+                  {chartData.map((entry, i) => {
+                    // Only show bars for entries with moods
+                    const moodDetail = entry.mood ? getMoodDetails(entry.mood) : null;
+                    const dayName = new Date(entry.date).toLocaleDateString("en-US", { weekday: "short" });
+                    
                     return (
-                      <div key={i} className="flex flex-col items-center">
-                        <div
-                          className={`w-8 rounded-t-sm transition-all hover:opacity-80 ${moodDetail.bg}`}
-                          style={{ height: `${entry.mood * 18}%` }}
-                        ></div>
-                        <span className="mt-2 text-xs">{new Date(entry.date).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                      <div key={i} className="flex flex-col items-center relative h-full">
+                        {entry.mood > 0 && (
+                          <div
+                            className={`w-8 rounded-sm transition-all hover:opacity-80 ${
+                              moodDetail ? moodDetail.bg : "bg-gray-100"
+                            }`}
+                            style={{ 
+                              height: getMoodHeight(entry.mood),
+                              position: 'absolute',
+                              bottom: entry.mood <= 3 ? 'auto' : getBaselinePosition(),
+                              top: entry.mood <= 3 ? getBaselinePosition() : 'auto',
+                            }}
+                            title={entry.note || "No notes for this day"}
+                          ></div>
+                        )}
+                        <span className="absolute bottom-0 text-xs">{dayName}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
-              <div className="mt-4 text-center text-sm text-gray-500">
+              <div className="mt-8 text-center text-sm text-gray-500">
                 Viewing the last 7 days
               </div>
             </CardContent>
@@ -209,30 +322,34 @@ const MoodTrackerPage = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {moodHistory.map((entry, index) => {
-                const moodDetail = getMoodDetails(entry.mood);
-                const MoodIcon = moodDetail.icon;
-                return (
-                  <div key={index} className="flex border-b border-healing-100 pb-4 last:border-0 last:pb-0">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-full mr-4 ${moodDetail.bg}`}>
-                      <MoodIcon className={`h-5 w-5 ${moodDetail.color}`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium">{moodDetail.label}</h4>
-                        <span className="text-xs text-gray-500">
-                          {new Date(entry.date).toLocaleDateString("en-US", { 
-                            year: "numeric", 
-                            month: "short", 
-                            day: "numeric" 
-                          })}
-                        </span>
+              {moodHistory.length === 0 ? (
+                <p className="text-center text-gray-500 py-6">You haven't logged any moods yet. Start tracking your moods to see your history here.</p>
+              ) : (
+                moodHistory.map((entry, index) => {
+                  const moodDetail = getMoodDetails(entry.mood);
+                  const MoodIcon = moodDetail.icon;
+                  return (
+                    <div key={index} className="flex border-b border-healing-100 pb-4 last:border-0 last:pb-0">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full mr-4 ${moodDetail.bg}`}>
+                        <MoodIcon className={`h-5 w-5 ${moodDetail.color}`} />
                       </div>
-                      {entry.note && <p className="mt-1 text-sm text-gray-600">{entry.note}</p>}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">{moodDetail.label}</h4>
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.date).toLocaleDateString("en-US", { 
+                              year: "numeric", 
+                              month: "short", 
+                              day: "numeric" 
+                            })}
+                          </span>
+                        </div>
+                        {entry.note && <p className="mt-1 text-sm text-gray-600">{entry.note}</p>}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>

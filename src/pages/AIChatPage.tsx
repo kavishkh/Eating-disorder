@@ -1,10 +1,8 @@
-
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import AppLayout from "../components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { 
   Card, 
   CardContent, 
@@ -19,12 +17,21 @@ import {
   Bot, 
   User, 
   Info, 
-  RefreshCw,
   MoveDown,
   Smile,
-  Frown,
-  Meh
+  Key,
+  AlertCircle,
 } from "lucide-react";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { sendMessageToClaude, saveApiKey, checkApiKeyExists } from "@/utils/claudeApi";
 
 // Define message types
 interface Message {
@@ -33,20 +40,6 @@ interface Message {
   content: string;
   timestamp: Date;
 }
-
-// Mock AI responses for demo purposes
-const mockAIResponses = [
-  "I understand that recovery can feel challenging sometimes. What specific struggles are you facing today?",
-  "It's completely normal to have mixed feelings about recovery. Your emotions are valid, and it's important to acknowledge them.",
-  "That's a great insight! Recognizing your patterns is a significant step in your recovery journey.",
-  "Remember that healing isn't linear - there will be ups and downs, but each step forward matters.",
-  "What coping strategies have worked for you in the past when you've felt this way?",
-  "It sounds like you're making progress, even if it doesn't always feel that way. Small steps add up over time.",
-  "I'm here to support you through your journey. What would be most helpful to discuss today?",
-  "That must be difficult to navigate. How are you taking care of yourself during this challenging time?",
-  "Have you considered talking to your healthcare provider about these feelings?",
-  "It's brave of you to share these thoughts. Would it help to explore some mindfulness exercises together?"
-];
 
 const AIChatPage = () => {
   const { currentUser } = useAuth();
@@ -62,6 +55,18 @@ const AIChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeyError, setApiKeyError] = useState(false);
+  const { toast } = useToast();
+
+  // Check if API key exists on component mount
+  useEffect(() => {
+    const hasApiKey = checkApiKeyExists();
+    if (!hasApiKey) {
+      setApiKeyDialogOpen(true);
+    }
+  }, []);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -79,10 +84,33 @@ const AIChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSaveApiKey = () => {
+    if (!apiKey.trim()) {
+      setApiKeyError(true);
+      return;
+    }
+    
+    saveApiKey(apiKey.trim());
+    setApiKeyDialogOpen(false);
+    setApiKey("");
+    setApiKeyError(false);
+    
+    toast({
+      title: "API Key Saved",
+      description: "Your Claude API key has been saved successfully.",
+    });
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!inputMessage.trim()) return;
+
+    // Check if API key exists
+    if (!checkApiKeyExists()) {
+      setApiKeyDialogOpen(true);
+      return;
+    }
 
     // Add user message
     const userMessage: Message = {
@@ -96,18 +124,43 @@ const AIChatPage = () => {
     setInputMessage("");
     setIsTyping(true);
 
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      const randomResponse = mockAIResponses[Math.floor(Math.random() * mockAIResponses.length)];
+    try {
+      // Get only the last few messages for context (to keep token count reasonable)
+      const recentMessages = [...messages.slice(-5), userMessage];
+      
+      // Call Claude API
+      const response = await sendMessageToClaude(recentMessages);
+      
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         sender: "ai",
-        content: randomResponse,
+        content: response,
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error getting response from Claude:", error);
+      
+      // Show error message
+      toast({
+        title: "Error",
+        description: "Failed to get response from Claude. Please check your API key and try again.",
+        variant: "destructive"
+      });
+      
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        sender: "ai",
+        content: "I'm sorry, I encountered an error. Please check your API key or try again later.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -130,11 +183,16 @@ const AIChatPage = () => {
                 </Avatar>
                 <div>
                   <CardTitle className="text-sm text-healing-800">Recovery Companion</CardTitle>
-                  <CardDescription className="text-xs">AI-powered support</CardDescription>
+                  <CardDescription className="text-xs">Powered by Claude AI</CardDescription>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="text-healing-700">
-                <Info className="h-4 w-4" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-healing-700"
+                onClick={() => setApiKeyDialogOpen(true)}
+              >
+                <Key className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
@@ -244,6 +302,51 @@ const AIChatPage = () => {
           </CardFooter>
         </Card>
       </div>
+
+      {/* API Key Dialog */}
+      <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Claude API Key</DialogTitle>
+            <DialogDescription>
+              Enter your Claude API key to enable the AI chat functionality.
+              You can get an API key from the Anthropic website.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 my-4">
+            <Input
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setApiKeyError(false);
+              }}
+              placeholder="Enter your Claude API key..."
+              className={`border-healing-200 ${apiKeyError ? 'border-red-500' : ''}`}
+              type="password"
+            />
+            {apiKeyError && (
+              <div className="flex items-center text-red-500 text-sm">
+                <AlertCircle className="h-4 w-4 mr-1" />
+                <span>Please enter a valid API key</span>
+              </div>
+            )}
+            <p className="text-sm text-gray-500">
+              Your API key is stored locally on your device and is not sent to our servers.
+              It's used only to communicate with the Claude AI service.
+            </p>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              onClick={handleSaveApiKey}
+              className="bg-healing-600 hover:bg-healing-700 text-white"
+            >
+              Save API Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

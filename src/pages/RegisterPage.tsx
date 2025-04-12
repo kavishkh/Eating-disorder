@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -16,10 +16,18 @@ const RegisterPage = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+  const [animateForm, setAnimateForm] = useState(false);
   
   const { register } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Trigger animation after component mounts
+    setTimeout(() => {
+      setAnimateForm(true);
+    }, 100);
+  }, []);
 
   const validatePassword = () => {
     if (password.length < 8) {
@@ -49,14 +57,18 @@ const RegisterPage = () => {
         title: "Account created",
         description: "Your account has been successfully created",
       });
-      navigate("/onboarding");
+      
+      // Add exit animation before navigating
+      setAnimateForm(false);
+      setTimeout(() => {
+        navigate("/onboarding");
+      }, 300);
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to create account. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -68,7 +80,7 @@ const RegisterPage = () => {
         <span>Back</span>
       </Link>
 
-      <div className="w-full max-w-md">
+      <div className={`w-full max-w-md transition-all duration-500 transform ${animateForm ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         <Card className="border-healing-100 shadow-lg">
           <CardHeader className="space-y-1">
             <CardTitle className="text-center text-2xl text-healing-800">Create an Account</CardTitle>
@@ -127,7 +139,11 @@ const RegisterPage = () => {
               </div>
             </CardContent>
             <CardFooter className="flex-col space-y-4">
-              <Button type="submit" className="w-full bg-healing-600 hover:bg-healing-700" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                className="w-full bg-healing-600 hover:bg-healing-700 transition-all duration-300 transform hover:scale-105" 
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? (
                   <div className="flex items-center">
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>

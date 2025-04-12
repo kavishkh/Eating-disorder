@@ -1,8 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   Home, 
   MessageCircle, 
@@ -20,9 +21,28 @@ interface AppLayoutProps {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
+  const isMobile = useIsMobile();
   const { currentUser, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Track scroll position for animations
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset;
+      if (scrollTop > 50) {
+        setScrolling(true);
+      } else {
+        setScrolling(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -42,7 +62,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <div className="app-container">
       {/* Mobile menu button */}
-      <div className="fixed top-4 left-4 z-30 md:hidden">
+      <div className={`fixed top-4 left-4 z-30 md:hidden transition-all duration-300 ${scrolling ? 'bg-white shadow-md rounded-full p-1' : ''}`}>
         <Button
           variant="outline"
           size="icon"
@@ -147,8 +167,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 md:ml-64">
-        <main className="min-h-screen p-4 md:p-8">{children}</main>
+      <div className={`flex-1 md:ml-64 transition-all duration-300 ${scrolling ? 'pt-16' : ''}`}>
+        <main className="min-h-screen p-4 md:p-8">
+          <div className={`space-y-4 ${isMobile ? 'animate-fade-in' : ''}`}>
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
