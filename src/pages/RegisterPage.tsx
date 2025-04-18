@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, UserPlus } from "lucide-react";
+import { ArrowLeft, UserPlus, AlertCircle } from "lucide-react";
 
 const RegisterPage = () => {
   const [name, setName] = useState("");
@@ -18,7 +17,7 @@ const RegisterPage = () => {
   const [passwordError, setPasswordError] = useState("");
   const [animateForm, setAnimateForm] = useState(false);
   
-  const { register } = useAuth();
+  const { register, error, currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -27,7 +26,16 @@ const RegisterPage = () => {
     setTimeout(() => {
       setAnimateForm(true);
     }, 100);
-  }, []);
+    
+    // If user is already logged in, redirect appropriately
+    if (currentUser) {
+      if (!currentUser.onboardingCompleted) {
+        navigate("/onboarding");
+      } else {
+        navigate("/dashboard");
+      }
+    }
+  }, [currentUser, navigate]);
 
   const validatePassword = () => {
     if (password.length < 8) {
@@ -58,15 +66,34 @@ const RegisterPage = () => {
         description: "Your account has been successfully created",
       });
       
+      console.log("Registration successful, redirecting to onboarding...");
+      
       // Add exit animation before navigating
       setAnimateForm(false);
       setTimeout(() => {
-        navigate("/onboarding");
+        // Let the useEffect handle the navigation based on onboardingCompleted
       }, 300);
-    } catch (error) {
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      
+      // Display more specific error messages based on Firebase error codes
+      let errorMessage = "Failed to create account. Please try again.";
+      
+      if (err.code === "auth/email-already-in-use") {
+        errorMessage = "This email is already in use. Please try another email or log in.";
+      } else if (err.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address. Please check and try again.";
+      } else if (err.code === "auth/weak-password") {
+        errorMessage = "Password is too weak. Please use a stronger password.";
+      } else if (err.code === "auth/configuration-not-found") {
+        errorMessage = "Authentication service is unavailable. Please try again later.";
+      } else if (err.code === "auth/network-request-failed") {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       setIsSubmitting(false);
@@ -87,6 +114,13 @@ const RegisterPage = () => {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-600 flex items-start">
+                  <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>An unexpected error occurred. Please try again later.</span>
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
                 <Input

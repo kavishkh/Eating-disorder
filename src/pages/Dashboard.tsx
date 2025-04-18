@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -49,6 +50,8 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log("Dashboard mounting, currentUser:", currentUser);
+    
     // Get random quote
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setQuote(randomQuote);

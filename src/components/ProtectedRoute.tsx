@@ -16,14 +16,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!currentUser) {
+    console.log("No user found, redirecting to login");
     return <Navigate to="/login" />;
   }
 
   // Check if user has completed onboarding
   if (currentUser && !currentUser.onboardingCompleted && window.location.pathname !== "/onboarding") {
+    console.log("User has not completed onboarding, redirecting to onboarding");
     return <Navigate to="/onboarding" />;
   }
 
+  console.log("User authenticated, rendering protected content");
   return <>{children}</>;
 };
 

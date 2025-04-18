@@ -1,4 +1,7 @@
 
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "./firebase";
+
 interface ClaudeMessage {
   role: "user" | "assistant";
   content: string;
@@ -19,7 +22,7 @@ export interface ClaudeResponse {
 }
 
 // This key would ideally be stored in environment variables on the server
-// For demo purposes we're using localStorage until the app connects to Supabase
+// For demo purposes we're using localStorage until the app connects to a proper backend
 const getApiKey = (): string => {
   return localStorage.getItem("claude_api_key") || "";
 };
@@ -33,7 +36,8 @@ export const checkApiKeyExists = (): boolean => {
 };
 
 export const sendMessageToClaude = async (
-  messages: { sender: "user" | "ai"; content: string }[]
+  messages: { sender: "user" | "ai"; content: string }[],
+  userId?: string
 ): Promise<string> => {
   const apiKey = getApiKey();
   
@@ -70,7 +74,24 @@ export const sendMessageToClaude = async (
     }
 
     const data = await response.json();
-    return data.content[0].text;
+    const responseText = data.content[0].text;
+    
+    // Store the conversation in Firebase if userId is provided
+    if (userId) {
+      // Store the last user message and AI response as a conversation entry
+      const lastUserMessage = messages.filter(msg => msg.sender === "user").pop();
+      
+      if (lastUserMessage) {
+        await addDoc(collection(db, "conversations"), {
+          userId,
+          userMessage: lastUserMessage.content,
+          aiResponse: responseText,
+          timestamp: serverTimestamp()
+        });
+      }
+    }
+    
+    return responseText;
   } catch (error) {
     console.error("Error calling Claude API:", error);
     throw error;
