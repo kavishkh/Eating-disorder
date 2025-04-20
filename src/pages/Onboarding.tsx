@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [animateOut, setAnimateOut] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { updateUserProfile, currentUser } = useAuth();
   const { toast } = useToast();
@@ -24,7 +25,7 @@ const Onboarding = () => {
 
   useEffect(() => {
     if (currentUser?.onboardingCompleted) {
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     }
   }, [currentUser, navigate]);
 
@@ -38,6 +39,7 @@ const Onboarding = () => {
   };
 
   const handleCompleteOnboarding = async () => {
+    setIsSubmitting(true);
     try {
       await updateUserProfile({
         onboardingCompleted: true,
@@ -50,17 +52,11 @@ const Onboarding = () => {
         description: 'Your profile has been updated successfully',
       });
 
-      setAnimateOut(true);
-
+      // Force a state refresh before navigation
       setTimeout(() => {
-        console.log('Navigating to dashboard');
-        try {
-          navigate('/dashboard');
-        } catch (err) {
-          // fallback if navigate fails
-          window.location.href = '/dashboard';
-        }
-      }, 300);
+        navigate('/dashboard', { replace: true });
+      }, 500);
+
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
       toast({
@@ -68,6 +64,8 @@ const Onboarding = () => {
         description: 'Failed to complete onboarding. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -159,10 +157,12 @@ const Onboarding = () => {
                     onClick={
                       currentStep === 3 ? handleCompleteOnboarding : handleContinue
                     }
-                    disabled={isNextDisabled()}
+                    disabled={isNextDisabled() || isSubmitting}
                     className="bg-healing-600 hover:bg-healing-700 transition-all duration-300 order-3 sm:order-3"
                   >
-                    {currentStep === 3 ? 'Complete & Continue' : 'Continue'}
+                    {currentStep === 3 
+                      ? (isSubmitting ? 'Completing...' : 'Complete & Continue')
+                      : 'Continue'}
                   </Button>
                 </div>
               </ScrollReveal>
