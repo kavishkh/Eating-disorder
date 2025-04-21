@@ -1,8 +1,9 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, WifiOff, RefreshCw } from 'lucide-react';
 import OnboardingWelcome from '@/components/OnboardingWelcome';
 import OnboardingSteps from '@/components/OnboardingSteps';
 import OnboardingDisorderSelect from '@/components/OnboardingDisorderSelect';
@@ -14,21 +15,45 @@ import { useToast } from '@/hooks/use-toast';
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [animateOut, setAnimateOut] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { updateUserProfile, currentUser } = useAuth();
+  const { updateUserProfile, currentUser, isOnline } = useAuth();
   const { toast } = useToast();
 
+  // Add state variables for the onboarding process
   const [selectedDisorder, setSelectedDisorder] = useState<string | null>(null);
   const [goals, setGoals] = useState<string[]>([]);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
+  // Handle retry connection
+  const handleRetryConnection = () => {
+    setIsRetrying(true);
+    setError(null);
+    
+    // Simulate checking connection
+    setTimeout(() => {
+      setIsRetrying(false);
+      // Force reload if we're online now
+      if (navigator.onLine) {
+        window.location.reload();
+      } else {
+        setError("Still offline. You can continue with limited functionality.");
+      }
+    }, 2000);
+  };
+
+  // Check if user has already completed onboarding
   useEffect(() => {
+    console.log("Onboarding component mounted, currentUser:", currentUser);
     if (currentUser?.onboardingCompleted) {
-      navigate('/dashboard', { replace: true });
+      console.log("User already completed onboarding, redirecting to dashboard");
+      navigate('/dashboard');
     }
   }, [currentUser, navigate]);
 
+  // Handle transition between steps with animation
   const handleStepChange = (nextStep: number) => {
     setAnimateOut(true);
     setTimeout(() => {
@@ -39,30 +64,68 @@ const Onboarding = () => {
   };
 
   const handleCompleteOnboarding = async () => {
-    setIsSubmitting(true);
     try {
-      await updateUserProfile({
+      setIsSubmitting(true);
+      setError(null);
+      
+      if (!currentUser) {
+        throw new Error("User not authenticated");
+      }
+      
+      console.log("Attempting to complete onboarding with data:", {
+        disorder: selectedDisorder,
+        goals,
         onboardingCompleted: true,
+        userId: currentUser.id,
+        isOnline
+      });
+      
+      // Save the onboarding information
+      await updateUserProfile({ 
         disorder: selectedDisorder,
         goals: goals,
+        onboardingCompleted: true
       });
-
+      
+      // Store onboarding data in localStorage as backup
+      localStorage.setItem('userOnboardingComplete', 'true');
+      localStorage.setItem('userDisorder', selectedDisorder || '');
+      localStorage.setItem('userGoals', JSON.stringify(goals));
+      
       toast({
-        title: 'Onboarding complete!',
-        description: 'Your profile has been updated successfully',
+        title: isOnline ? "Onboarding complete!" : "Onboarding saved locally",
+        description: isOnline 
+          ? "Your profile has been updated successfully" 
+          : "Your preferences will sync when you're back online"
       });
-
-      // Force a state refresh before navigation
+      
+      console.log("Onboarding completed successfully, navigating to dashboard");
+      
+      // Animate out before navigating
+      setAnimateOut(true);
       setTimeout(() => {
-        navigate('/dashboard', { replace: true });
-      }, 500);
-
-    } catch (error) {
-      console.error('Failed to complete onboarding:', error);
+        // Navigate to dashboard
+        navigate('/dashboard');
+      }, 300);
+    } catch (error: any) {
+      console.error("Failed to complete onboarding:", error);
+      
+      let errorMessage = "An error occurred. ";
+      
+      if (!isOnline) {
+        errorMessage = "You're offline. Your preferences will be saved locally and synced when you're back online.";
+      } else if (error.message.includes("offline") || error.message.includes("network")) {
+        errorMessage = "Failed to connect to our servers. Please check your internet connection.";
+      } else {
+        errorMessage += error.message || "Please try again.";
+      }
+      
+      setError(errorMessage);
+      
       toast({
-        title: 'Error',
-        description: 'Failed to complete onboarding. Please try again.',
-        variant: 'destructive',
+        title: "Warning",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setIsSubmitting(false);
@@ -78,13 +141,14 @@ const Onboarding = () => {
   };
 
   const toggleGoal = (goalId: string) => {
-    setGoals((prev) =>
+    setGoals(prev => 
       prev.includes(goalId)
-        ? prev.filter((id) => id !== goalId)
+        ? prev.filter(id => id !== goalId)
         : [...prev, goalId]
     );
   };
 
+  // Determine if the next button should be disabled
   const isNextDisabled = () => {
     if (currentStep === 1 && !selectedDisorder) return true;
     if (currentStep === 2 && goals.length === 0) return true;
@@ -95,55 +159,84 @@ const Onboarding = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-healing-100 to-healing-200">
       <div className="container mx-auto px-4 py-8">
+        {!isOnline && (
+          <div className="mb-6 rounded-lg bg-amber-50 p-4 text-amber-800 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <WifiOff className="mr-3 h-5 w-5 text-amber-600" />
+                <p className="font-medium">You are currently offline</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRetryConnection}
+                disabled={isRetrying}
+                className="text-amber-800 border-amber-300 hover:bg-amber-100"
+              >
+                {isRetrying ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Retry"
+                )}
+              </Button>
+            </div>
+            <p className="mt-1 text-sm">
+              You can complete onboarding offline. Your preferences will be saved locally and synced when you're back online.
+            </p>
+          </div>
+        )}
+        
         {currentStep === 0 ? (
-          <div
-            className={`transition-opacity duration-300 ${
-              animateOut ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
+          <div className={`transition-opacity duration-300 ${animateOut ? 'opacity-0' : 'opacity-100'}`}>
             <OnboardingWelcome onContinue={handleContinue} />
           </div>
         ) : (
-          <div
-            className={`transition-all duration-300 ${
-              animateOut ? 'opacity-0 translate-y-10' : 'opacity-100 translate-y-0'
-            }`}
-          >
+          <div className={`transition-all duration-300 ${animateOut ? 'opacity-0 translate-y-10' : 'opacity-100 translate-y-0'}`}>
             <ScrollReveal>
               <OnboardingSteps currentStep={currentStep} totalSteps={3} />
             </ScrollReveal>
 
             <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8">
               {currentStep === 1 && (
-                <OnboardingDisorderSelect
-                  selectedDisorder={selectedDisorder}
-                  onSelectDisorder={setSelectedDisorder}
+                <OnboardingDisorderSelect 
+                  selectedDisorder={selectedDisorder} 
+                  onSelectDisorder={setSelectedDisorder} 
                 />
               )}
 
               {currentStep === 2 && (
-                <OnboardingGoals selectedGoals={goals} onToggleGoal={toggleGoal} />
+                <OnboardingGoals 
+                  selectedGoals={goals} 
+                  onToggleGoal={toggleGoal} 
+                />
               )}
 
               {currentStep === 3 && (
-                <OnboardingAcknowledge
-                  acknowledged={acknowledged}
-                  onAcknowledge={setAcknowledged}
+                <OnboardingAcknowledge 
+                  acknowledged={acknowledged} 
+                  onAcknowledge={setAcknowledged} 
                 />
+              )}
+
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm flex items-start">
+                  <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>{error}</div>
+                </div>
               )}
 
               <ScrollReveal delay={400}>
                 <div className="flex flex-col sm:flex-row justify-between mt-8 space-y-4 sm:space-y-0 sm:space-x-4">
                   {currentStep > 1 && (
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       onClick={handleBack}
                       className="order-2 sm:order-1"
                     >
                       Back
                     </Button>
                   )}
-
+                  
                   <div className="flex-1 order-1 sm:order-2">
                     {isNextDisabled() && currentStep > 0 && (
                       <div className="flex items-center justify-center sm:justify-end text-amber-600 mb-4 text-sm">
@@ -154,15 +247,16 @@ const Onboarding = () => {
                   </div>
 
                   <Button
-                    onClick={
-                      currentStep === 3 ? handleCompleteOnboarding : handleContinue
-                    }
+                    onClick={currentStep === 3 ? handleCompleteOnboarding : handleContinue}
                     disabled={isNextDisabled() || isSubmitting}
                     className="bg-healing-600 hover:bg-healing-700 transition-all duration-300 order-3 sm:order-3"
                   >
-                    {currentStep === 3 
-                      ? (isSubmitting ? 'Completing...' : 'Complete & Continue')
-                      : 'Continue'}
+                    {isSubmitting ? (
+                      <div className="flex items-center">
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        <span>Processing...</span>
+                      </div>
+                    ) : currentStep === 3 ? 'Complete & Continue' : 'Continue'}
                   </Button>
                 </div>
               </ScrollReveal>
