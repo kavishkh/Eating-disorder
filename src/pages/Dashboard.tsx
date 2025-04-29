@@ -5,18 +5,28 @@ import { updateUserProgress } from "../services/progressService";
 import AppLayout from "../components/AppLayout";
 import GoalsDialog from "../components/GoalsDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  MessageCircle, 
-  BarChart, 
-  BookOpen, 
-  AlertTriangle, 
-  Heart, 
-  Star, 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  MessageCircle,
+  BarChart,
+  BookOpen,
+  AlertTriangle,
+  Heart,
+  Star,
   Calendar,
-  ArrowRight
+  ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Firestore imports
+import { db } from "../utils/firebase";
+import { getDoc, doc, updateDoc, setDoc } from "firebase/firestore";
 
 const mockMoodData = [
   { date: "Mon", value: 3 },
@@ -37,6 +47,11 @@ const quotes = [
   "The most powerful relationship you will ever have is the relationship with yourself.",
   "Your worth is not measured by your weight or appearance.",
   "Nourish your body, mind, and soul with kindness and compassion.",
+  "You are stronger than you think.",
+  "Take it one step at a time.",
+  "Every day is a second chance.",
+  "Your feelings are valid.",
+  "Believe in yourself.",
 ];
 
 const Dashboard = () => {
@@ -47,65 +62,74 @@ const Dashboard = () => {
   const [userGoals, setUserGoals] = useState<string[]>([]);
   const { toast } = useToast();
 
+  // Fetch data on mount
   useEffect(() => {
-    console.log("Dashboard mounting, currentUser:", currentUser);
-    
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setQuote(randomQuote);
-    
-    const storedMoods = localStorage.getItem('moodHistory');
-    if (storedMoods) {
-      try {
-        const moodHistory = JSON.parse(storedMoods);
-        if (moodHistory.length > 0) {
-          const today = new Date().toISOString().split('T')[0];
+
+    const fetchUserData = async () => {
+      const today = new Date().toISOString().split('T')[0];
+
+      // Load mood from localStorage or Firestore
+      const storedMoods = localStorage.getItem('moodHistory');
+      if (storedMoods) {
+        try {
+          const moodHistory = JSON.parse(storedMoods);
           const todayEntry = moodHistory.find((entry: any) => entry.date === today);
           if (todayEntry) {
             setTodayMood(todayEntry.mood);
           }
-        }
-      } catch (error) {
-        console.error("Failed to parse mood history:", error);
-      }
-    }
-    
-    if (currentUser?.goals) {
-      setUserGoals(currentUser.goals);
-    } else {
-      const storedGoals = localStorage.getItem('userGoals');
-      if (storedGoals) {
-        try {
-          const parsedGoals = JSON.parse(storedGoals);
-          setUserGoals(parsedGoals);
         } catch (error) {
-          console.error("Failed to parse goals:", error);
+          console.error("Failed to parse mood history:", error);
         }
       }
-    }
+
+      // Load goals from currentUser or localStorage
+      if (currentUser?.goals) {
+        setUserGoals(currentUser.goals);
+      } else {
+        const storedGoals = localStorage.getItem('userGoals');
+        if (storedGoals) {
+          try {
+            setUserGoals(JSON.parse(storedGoals));
+          } catch (error) {
+            console.error("Failed to parse goals:", error);
+          }
+        }
+      }
+    };
+
+    fetchUserData();
   }, [currentUser]);
 
+  // Update daily streak progress
   useEffect(() => {
     const updateDailyProgress = async () => {
-      if (currentUser?.id) {
-        try {
-          const lastActiveDate = currentUser.progressMetrics?.lastActiveDate;
-          const today = new Date().toISOString().split('T')[0];
-          const wasActiveToday = lastActiveDate?.split('T')[0] === today;
+      if (!currentUser?.id) return;
 
-          if (!wasActiveToday) {
-            await updateUserProgress(currentUser.id, {
-              streakDays: (currentUser.progressMetrics?.streakDays || 0) + 1,
-              lastActiveDate: today
-            });
+      const today = new Date().toISOString().split('T')[0];
+      const userRef = doc(db, "users", currentUser.id);
 
-            toast({
-              title: "Progress Updated",
-              description: "Your daily streak has been updated!",
-            });
-          }
-        } catch (error) {
-          console.error("Failed to update daily progress:", error);
+      try {
+        const userSnap = await getDoc(userRef);
+        const data = userSnap.data();
+        const lastActive = data?.progressMetrics?.lastActiveDate?.split('T')[0];
+
+        if (lastActive !== today) {
+          const newStreak = (data?.progressMetrics?.streakDays || 0) + 1;
+
+          await updateDoc(userRef, {
+            "progressMetrics.streakDays": newStreak,
+            "progressMetrics.lastActiveDate": today
+          });
+
+          toast({
+            title: "Progress Updated",
+            description: "Your daily streak has been updated!",
+          });
         }
+      } catch (err) {
+        console.error("Error updating streak:", err);
       }
     };
 
@@ -115,24 +139,25 @@ const Dashboard = () => {
   const handleSaveGoals = async (goals: string[]) => {
     setUserGoals(goals);
     localStorage.setItem('userGoals', JSON.stringify(goals));
-    
-    if (currentUser && updateUserProfile) {
+
+    if (currentUser?.id) {
       try {
-        await updateUserProfile({ goals });
-        await updateUserProgress(currentUser.id, {
-          totalGoals: goals.length
+        const userRef = doc(db, "users", currentUser.id);
+        await updateDoc(userRef, {
+          goals,
+          "progressMetrics.totalGoals": goals.length,
         });
-        
+
         toast({
-          title: "Goals updated",
-          description: "Your goals have been saved successfully"
+          title: "Goals Updated",
+          description: "Your goals have been saved successfully.",
         });
       } catch (error) {
-        console.error("Failed to update goals:", error);
+        console.error("Failed to save goals:", error);
         toast({
           title: "Error",
-          description: "Failed to update goals. Please try again.",
-          variant: "destructive"
+          description: "Could not update goals. Please try again.",
+          variant: "destructive",
         });
       }
     }
@@ -153,7 +178,11 @@ const Dashboard = () => {
           <div className="flex items-center space-x-2">
             <Calendar className="h-5 w-5 text-healing-600" />
             <span className="text-sm font-medium text-healing-800">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
             </span>
           </div>
         </div>
@@ -181,7 +210,9 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">Get empathetic support and guidance from your AI companion.</p>
+              <p className="text-sm text-gray-600">
+                Get empathetic support and guidance from your AI companion.
+              </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
                 <Link to="/chat">Start Chatting</Link>
               </Button>
@@ -197,7 +228,9 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-600">
-                {todayMood ? "You haven't logged your mood today." : "Track your emotions to discover patterns."}
+                {todayMood
+                  ? `Today's mood: ${todayMood}/5`
+                  : "You haven't logged your mood today."}
               </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
                 <Link to="/mood">Log Your Mood</Link>
@@ -213,7 +246,9 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">Explore articles, videos, and resources about recovery.</p>
+              <p className="text-sm text-gray-600">
+                Explore articles, videos, and resources about recovery.
+              </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
                 <Link to="/learn">Explore</Link>
               </Button>
@@ -228,7 +263,9 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">Access immediate support if you're experiencing a crisis.</p>
+              <p className="text-sm text-gray-600">
+                Access immediate support if you're experiencing a crisis.
+              </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
                 <Link to="/crisis-resources">View Resources</Link>
               </Button>
@@ -246,7 +283,7 @@ const Dashboard = () => {
               <CardDescription>Track your progress on recovery goals</CardDescription>
             </CardHeader>
             <CardContent>
-              {userGoals && userGoals.length > 0 ? (
+              {userGoals.length > 0 ? (
                 <ul className="space-y-3">
                   {userGoals.slice(0, 3).map((goal, index) => (
                     <li key={index} className="flex items-start">
@@ -257,8 +294,8 @@ const Dashboard = () => {
                     </li>
                   ))}
                   <li className="text-sm text-healing-600 hover:text-healing-800">
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="p-0 h-auto flex items-center text-healing-600 hover:text-healing-800"
                       onClick={() => setIsGoalsDialogOpen(true)}
                     >
@@ -269,9 +306,9 @@ const Dashboard = () => {
               ) : (
                 <div className="text-center py-6">
                   <p className="text-sm text-gray-500 mb-2">You haven't set any goals yet</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="border-healing-300 text-healing-700"
                     onClick={() => setIsGoalsDialogOpen(true)}
                   >
@@ -295,11 +332,11 @@ const Dashboard = () => {
                 <div className="flex h-full w-full items-end justify-between">
                   {mockMoodData.map((day, i) => (
                     <div key={i} className="flex flex-col items-center">
-                      <div 
+                      <div
                         className="w-8 bg-healing-300 rounded-t-sm transition-all hover:bg-healing-500"
-                        style={{ 
+                        style={{
                           height: `${day.value * 20}%`,
-                          backgroundColor: i === mockMoodData.length - 1 ? 'rgb(155, 135, 245)' : ''
+                          backgroundColor: i === mockMoodData.length - 1 ? 'rgb(155, 135, 245)' : '',
                         }}
                       ></div>
                       <span className="mt-2 text-xs font-medium">{day.date}</span>
@@ -308,7 +345,10 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="mt-4 text-center">
-                <Link to="/mood" className="text-sm text-healing-600 hover:text-healing-800 flex items-center justify-center">
+                <Link
+                  to="/mood"
+                  className="text-sm text-healing-600 hover:text-healing-800 flex items-center justify-center"
+                >
                   View detailed mood history <ArrowRight className="ml-1 h-3 w-3" />
                 </Link>
               </div>
@@ -316,7 +356,7 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
-      
+
       <GoalsDialog
         open={isGoalsDialogOpen}
         onOpenChange={setIsGoalsDialogOpen}

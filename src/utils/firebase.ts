@@ -52,7 +52,7 @@ try {
 
 // Setup network status monitoring
 let isOnline = navigator.onLine;
-const networkListeners = new Set();
+const networkListeners = new Set<(isOnline: boolean) => void>();
 
 const updateNetworkStatus = () => {
   const wasOnline = isOnline;

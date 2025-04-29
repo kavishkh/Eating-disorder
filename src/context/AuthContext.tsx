@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { 
   createUserWithEmailAndPassword, 
@@ -9,7 +8,8 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db, onNetworkStatusChange, getNetworkStatus } from "../utils/firebase";
+import { auth, db } from "../firebaseConfig";
+import { onNetworkStatusChange, getNetworkStatus } from "../utils/firebase";
 import { syncLocalEntriesWithFirebase } from "../services/moodService";
 import { User as AppUser } from "@/types/types";
 import { useToast } from "@/hooks/use-toast";

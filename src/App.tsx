@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 
 // Pages
@@ -18,6 +17,12 @@ import EducationalHub from "./pages/EducationalHub";
 import CrisisResourcesPage from "./pages/CrisisResourcesPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+// Educational Hub Subpages
+import UnderstandingED from "./pages/EducationalHub/UnderstandingED";
+import NutritionBasics from "./pages/EducationalHub/NutritionBasics";
+import CopingStrategies from "./pages/EducationalHub/CopingStrategies";
+import BodyImage from "./pages/EducationalHub/BodyImage";
 
 const queryClient = new QueryClient();
 
@@ -52,11 +57,20 @@ const App = () => (
                 <MoodTrackerPage />
               </ProtectedRoute>
             } />
-            <Route path="/learn" element={
-              <ProtectedRoute>
-                <EducationalHub />
-              </ProtectedRoute>
-            } />
+            <Route 
+              path="/learn" 
+              element={
+                <ProtectedRoute>
+                  <EducationalHub />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="understanding" replace />} /> 
+              <Route path="understanding" element={<UnderstandingED />} />
+              <Route path="nutrition" element={<NutritionBasics />} />
+              <Route path="coping" element={<CopingStrategies />} />
+              <Route path="body-image" element={<BodyImage />} />
+            </Route>
             <Route path="/crisis-resources" element={<CrisisResourcesPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
