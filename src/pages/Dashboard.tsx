@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { updateUserProgress } from "../services/progressService";
 import AppLayout from "../components/AppLayout";
 import GoalsDialog from "../components/GoalsDialog";
+import MoodTrendWidget from "../components/dashboard/MoodTrendWidget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,16 +28,6 @@ import { useToast } from "@/hooks/use-toast";
 // Firestore imports
 import { db } from "../utils/firebase";
 import { getDoc, doc, updateDoc, setDoc } from "firebase/firestore";
-
-const mockMoodData = [
-  { date: "Mon", value: 3 },
-  { date: "Tue", value: 2 },
-  { date: "Wed", value: 4 },
-  { date: "Thu", value: 3 },
-  { date: "Fri", value: 5 },
-  { date: "Sat", value: 4 },
-  { date: "Sun", value: 4 },
-];
 
 const quotes = [
   "Recovery is not a race; it's a journey that we take one day at a time.",
@@ -137,20 +128,34 @@ const Dashboard = () => {
   }, [currentUser]);
 
   const handleSaveGoals = async (goals: string[]) => {
-    setUserGoals(goals);
+    console.log("Saving goals from dialog:", goals); // Debug log
+    
+    // Update local state first for immediate UI feedback
+    setUserGoals([...goals]);
+    
+    // Make sure we're saving an array to localStorage
     localStorage.setItem('userGoals', JSON.stringify(goals));
 
     if (currentUser?.id) {
       try {
         const userRef = doc(db, "users", currentUser.id);
         await updateDoc(userRef, {
-          goals,
+          goals: goals, // Ensure we're passing the array directly
           "progressMetrics.totalGoals": goals.length,
+        });
+
+        // Update the AuthContext to reflect the new goals
+        await updateUserProfile({
+          goals: goals, // Ensure we're passing the array directly
+          progressMetrics: {
+            ...currentUser.progressMetrics,
+            totalGoals: goals.length,
+          }
         });
 
         toast({
           title: "Goals Updated",
-          description: "Your goals have been saved successfully.",
+          description: `${goals.length} ${goals.length === 1 ? 'goal has' : 'goals have'} been saved successfully.`,
         });
       } catch (error) {
         console.error("Failed to save goals:", error);
@@ -160,6 +165,12 @@ const Dashboard = () => {
           variant: "destructive",
         });
       }
+    } else {
+      // For non-authenticated users, just store in localStorage
+      toast({
+        title: "Goals Saved Locally",
+        description: "Goals saved to your device. Create an account to sync across devices.",
+      });
     }
   };
 
@@ -202,15 +213,15 @@ const Dashboard = () => {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="card-hover border-healing-200">
+          <Card className="card-hover border-healing-200 flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center text-healing-800">
                 <MessageCircle className="mr-2 h-5 w-5 text-healing-600" />
                 AI Support Chat
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
+            <CardContent className="flex flex-col flex-grow">
+              <p className="text-sm text-gray-600 mb-auto">
                 Get empathetic support and guidance from your AI companion.
               </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
@@ -219,15 +230,15 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="card-hover border-healing-200">
+          <Card className="card-hover border-healing-200 flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center text-healing-800">
                 <BarChart className="mr-2 h-5 w-5 text-healing-600" />
                 Mood Tracker
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
+            <CardContent className="flex flex-col flex-grow">
+              <p className="text-sm text-gray-600 mb-auto">
                 {todayMood
                   ? `Today's mood: ${todayMood}/5`
                   : "You haven't logged your mood today."}
@@ -238,15 +249,15 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="card-hover border-healing-200">
+          <Card className="card-hover border-healing-200 flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center text-healing-800">
                 <BookOpen className="mr-2 h-5 w-5 text-healing-600" />
                 Educational Content
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
+            <CardContent className="flex flex-col flex-grow">
+              <p className="text-sm text-gray-600 mb-auto">
                 Explore articles, videos, and resources about recovery.
               </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
@@ -255,15 +266,15 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="card-hover border-healing-200">
+          <Card className="card-hover border-healing-200 flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center text-healing-800">
                 <AlertTriangle className="mr-2 h-5 w-5 text-healing-600" />
                 Crisis Resources
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
+            <CardContent className="flex flex-col flex-grow">
+              <p className="text-sm text-gray-600 mb-auto">
                 Access immediate support if you're experiencing a crisis.
               </p>
               <Button asChild className="mt-4 w-full bg-healing-500 hover:bg-healing-600 text-white">
@@ -319,41 +330,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-healing-200">
-            <CardHeader>
-              <CardTitle className="flex items-center text-healing-800">
-                <BarChart className="mr-2 h-5 w-5 text-healing-600" />
-                Mood Trends
-              </CardTitle>
-              <CardDescription>Your mood patterns over the last week</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[160px]">
-                <div className="flex h-full w-full items-end justify-between">
-                  {mockMoodData.map((day, i) => (
-                    <div key={i} className="flex flex-col items-center">
-                      <div
-                        className="w-8 bg-healing-300 rounded-t-sm transition-all hover:bg-healing-500"
-                        style={{
-                          height: `${day.value * 20}%`,
-                          backgroundColor: i === mockMoodData.length - 1 ? 'rgb(155, 135, 245)' : '',
-                        }}
-                      ></div>
-                      <span className="mt-2 text-xs font-medium">{day.date}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-4 text-center">
-                <Link
-                  to="/mood"
-                  className="text-sm text-healing-600 hover:text-healing-800 flex items-center justify-center"
-                >
-                  View detailed mood history <ArrowRight className="ml-1 h-3 w-3" />
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Replace mock data with the MoodTrendWidget component */}
+          <MoodTrendWidget />
         </div>
       </div>
 

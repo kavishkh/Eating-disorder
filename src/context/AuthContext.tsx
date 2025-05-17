@@ -5,10 +5,11 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  signInWithPopup,
   User as FirebaseUser,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from "../firebaseConfig";
+import { auth, db, googleProvider } from "../firebaseConfig";
 import { onNetworkStatusChange, getNetworkStatus } from "../utils/firebase";
 import { syncLocalEntriesWithFirebase } from "../services/moodService";
 import { User as AppUser } from "@/types/types";
@@ -19,8 +20,9 @@ interface AuthContextType {
   loading: boolean;
   error: Error | null;
   isOnline: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AppUser | null>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  loginWithGoogle: () => Promise<AppUser | null>;
   logout: () => void;
   updateUserProfile: (data: Partial<AppUser>) => Promise<void>;
 }
@@ -40,13 +42,16 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
   try {
     // Check if we're online before trying to fetch from Firestore
     if (!getNetworkStatus()) {
+      // If offline, check localStorage for onboarding status first
+      const onboardingCompleted = localStorage.getItem('userOnboardingComplete') === 'true';
+      
       // If offline, return basic user info from Firebase Auth
-      console.log("Offline: Using basic user info from Firebase Auth");
+      console.log("Offline: Using basic user info from Firebase Auth with onboarding status:", onboardingCompleted);
       return {
         id: firebaseUser.uid,
         email: firebaseUser.email || "",
         name: firebaseUser.displayName || "",
-        onboardingCompleted: false, // Safe default when offline
+        onboardingCompleted: onboardingCompleted, // Use cached value instead of default false
         registrationDate: new Date(),
         lastActivity: new Date().toISOString(),
         moodEntries: 0,
@@ -65,13 +70,19 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
     if (userDoc.exists()) {
       const userData = userDoc.data();
       console.log("User data from Firestore:", userData);
+      
+      // Store onboarding status in localStorage for offline use
+      if (userData.onboardingCompleted) {
+        localStorage.setItem('userOnboardingComplete', 'true');
+      }
+      
       return {
         id: firebaseUser.uid,
         email: firebaseUser.email || "",
         name: firebaseUser.displayName || userData.name,
         disorder: userData.disorder,
         goals: userData.goals || [],
-        onboardingCompleted: userData.onboardingCompleted || false,
+        onboardingCompleted: userData.onboardingCompleted === true, // Ensure boolean type
         registrationDate: userData.createdAt ? new Date(userData.createdAt) : new Date(),
         lastActivity: userData.lastActivity || new Date().toISOString(),
         moodEntries: userData.moodEntries || 0,
@@ -85,7 +96,7 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
     }
     
     // First time user or document doesn't exist yet
-    console.log("No user document exists yet, returning basic user");
+    console.log("No user document exists yet, returning basic user with onboarding needed");
     return {
       id: firebaseUser.uid,
       email: firebaseUser.email || "",
@@ -152,59 +163,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log("Setting up auth state listener");
+    let authStateTimeout: NodeJS.Timeout;
+    let initialAuthCheck = true;
+    
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       setError(null);
+      
+      // Set a shorter timeout to prevent long loading states
+      clearTimeout(authStateTimeout);
+      authStateTimeout = setTimeout(() => {
+        console.log("Auth state listener timed out, forcing loading to false");
+        setLoading(false);
+      }, 3000); // 3 second safety timeout
+      
       try {
         if (firebaseUser) {
           console.log("User is signed in:", firebaseUser.uid);
-          const formattedUser = await formatUser(firebaseUser);
-          console.log("Formatted user:", formattedUser);
-          setCurrentUser(formattedUser);
           
-          // Only try these operations if we're online
-          if (isOnline) {
-            // Sync any local mood entries to Firebase
-            await syncLocalEntriesWithFirebase(firebaseUser.uid);
-            
-            // Update last activity timestamp
+          // On initial page load or refresh, check localStorage first for faster response
+          let formattedUser: AppUser | null = null;
+          const cachedUser = localStorage.getItem(`user_${firebaseUser.uid}`);
+          
+          if (cachedUser && (initialAuthCheck || !isOnline)) {
             try {
-              const userRef = doc(db, "users", firebaseUser.uid);
-              await updateDoc(userRef, {
-                lastActivity: new Date().toISOString()
-              }).catch(err => {
-                console.log("Error updating last activity - document may not exist yet:", err);
-                // Create document if it doesn't exist
-                return setDoc(userRef, {
-                  email: firebaseUser.email,
-                  name: firebaseUser.displayName,
-                  lastActivity: new Date().toISOString(),
-                  createdAt: new Date().toISOString(),
-                  onboardingCompleted: false
-                });
-              });
-            } catch (err) {
-              console.error("Error updating user document:", err);
-              // Non-fatal error, continue with auth
+              // Use cached user data for immediate UI response
+              formattedUser = JSON.parse(cachedUser) as AppUser;
+              console.log("Using cached user data for immediate UI:", formattedUser);
+              
+              // IMPORTANT FIX: Check if the cached onboardingCompleted is explicitly set
+              // This prevents redirecting to onboarding every time due to implicit false values
+              const hasExplicitOnboardingValue = 
+                cachedUser.includes('"onboardingCompleted":true') || 
+                cachedUser.includes('"onboardingCompleted":false');
+                
+              if (hasExplicitOnboardingValue) {
+                setCurrentUser(formattedUser);
+              } else {
+                // If no explicit value, we need to fetch it from Firestore
+                console.log("No explicit onboarding status in cached user, will fetch from Firestore");
+              }
+              
+              // If this is initial auth check, still fetch fresh data in background
+              if (!isOnline) {
+                clearTimeout(authStateTimeout);
+                setLoading(false);
+                return;
+              }
+            } catch (e) {
+              console.error("Error parsing cached user:", e);
             }
+          }
+          
+          // Always get fresh user data from Firestore when online
+          if (isOnline) {
+            formattedUser = await formatUser(firebaseUser);
+            console.log("Got fresh user data from Firestore:", formattedUser);
+            
+            // IMPORTANT: Log the onboarding status explicitly to help with debugging
+            console.log(`User onboarding status from Firestore: ${formattedUser.onboardingCompleted}`);
+            
+            setCurrentUser(formattedUser);
+            
+            // Cache the fresh user data for future use
+            localStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(formattedUser));
+            
+            // Also save onboarding status separately for easier access
+            localStorage.setItem('userOnboardingComplete', formattedUser.onboardingCompleted ? 'true' : 'false');
+            localStorage.setItem(`onboarding_${firebaseUser.uid}`, formattedUser.onboardingCompleted ? 'true' : 'false');
+            
+            // Remove automatic redirects from auth listener to prevent unexpected redirects
+            // Let the router handle redirects instead based on current path and user state
           }
         } else {
           console.log("User is signed out");
           setCurrentUser(null);
+          
+          // Clear cached user data on sign out
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('user_') || key.startsWith('onboarding_') || key === 'userOnboardingComplete')) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
         }
       } catch (err: any) {
         console.error("Auth state change error:", err);
         setCurrentUser(null);
         setError(err);
       } finally {
+        clearTimeout(authStateTimeout);
         setLoading(false);
+        initialAuthCheck = false;
       }
     });
 
-    // Cleanup subscription
-    return unsubscribe;
+    // Cleanup subscription and timeout
+    return () => {
+      unsubscribe();
+      clearTimeout(authStateTimeout);
+    };
   }, [isOnline]);
+
+  // Add a token refresh mechanism to keep the session alive
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    console.log("Setting up token refresh interval");
+    
+    // Refresh token every 50 minutes (Firebase tokens typically expire after 1 hour)
+    const refreshInterval = setInterval(async () => {
+      try {
+        if (auth.currentUser) {
+          // Force token refresh
+          await auth.currentUser.getIdToken(true);
+          console.log("Auth token refreshed successfully");
+        }
+      } catch (err) {
+        console.error("Failed to refresh authentication token:", err);
+      }
+    }, 50 * 60 * 1000); // 50 minutes
+    
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [currentUser]);
 
   // Firebase login
   const login = async (email: string, password: string) => {
@@ -218,13 +304,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Attempting login for:", email);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Optimize login by doing minimal operations needed
+      // Get basic user data first to enable quicker UI feedback
+      const basicUser = {
+        id: userCredential.user.uid,
+        email: userCredential.user.email || "",
+        name: userCredential.user.displayName || "",
+        onboardingCompleted: false,
+        registrationDate: new Date(),
+        lastActivity: new Date().toISOString(),
+      };
+      
+      // Get more complete data
       const formattedUser = await formatUser(userCredential.user);
       
-      // Sync local mood entries with Firestore
-      await syncLocalEntriesWithFirebase(userCredential.user.uid);
+      // Cache user data for fast loading on page refresh
+      localStorage.setItem(`user_${userCredential.user.uid}`, JSON.stringify(formattedUser));
       
+      // Set both loading states explicitly to false
+      setLoading(false);
       setCurrentUser(formattedUser);
+      
       console.log("Login successful for:", email);
+      return formattedUser;
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err);
@@ -273,9 +376,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const formattedUser = await formatUser(user);
       setCurrentUser(formattedUser);
       console.log("Registration successful for:", email);
+      
+      // Set loading to false before redirect to prevent infinite loading
+      setLoading(false);
+      
+      // New users always need to complete onboarding
+      window.location.href = "/onboarding";
+      return;
     } catch (err: any) {
       console.error("Registration error:", err);
       setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google authentication
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      if (!isOnline) {
+        throw new Error("You're offline. Please check your internet connection and try again.");
+      }
+      
+      console.log("Attempting Google login");
+      
+      // Use try-catch specifically for the popup operation
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+        
+        // Check if this is a new user (first time sign-in)
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        
+        if (!userDoc.exists()) {
+          // Create a new user document in Firestore for Google sign-in
+          console.log("Creating Firestore document for new Google user:", user.uid);
+          await setDoc(doc(db, "users", user.uid), {
+            email: user.email,
+            name: user.displayName,
+            onboardingCompleted: false,
+            createdAt: new Date().toISOString(),
+            lastActivity: new Date().toISOString(),
+            moodEntries: 0,
+            progressMetrics: {
+              completedGoals: 0,
+              totalGoals: 0,
+              streakDays: 0,
+              lastActiveDate: new Date().toISOString()
+            }
+          });
+        }
+        
+        // Get complete user data
+        const formattedUser = await formatUser(user);
+        
+        // Cache user data for fast loading on page refresh
+        localStorage.setItem(`user_${user.uid}`, JSON.stringify(formattedUser));
+        
+        // Set current user state
+        setCurrentUser(formattedUser);
+        console.log("Google login successful for:", user.email);
+        
+        setLoading(false);
+        return formattedUser;
+      } catch (popupError: any) {
+        // Handle popup-specific errors
+        console.error("Google popup error:", popupError);
+        
+        if (popupError.code === "auth/popup-closed-by-user") {
+          throw new Error("Login popup was closed. Please try again.");
+        } else if (popupError.code === "auth/popup-blocked") {
+          throw new Error("Login popup was blocked by your browser. Please enable popups and try again.");
+        } else if (popupError.code === "auth/operation-not-allowed") {
+          throw new Error("Google sign-in is not enabled for this app. Please contact the administrator.");
+        } else if (popupError.code === "auth/cancelled-popup-request") {
+          throw new Error("Multiple popups detected. Please try again.");
+        } else if (popupError.code === "auth/account-exists-with-different-credential") {
+          throw new Error("An account already exists with the same email but different sign-in credentials.");
+        } else {
+          throw popupError; // Re-throw other errors
+        }
+      }
+    } catch (err: any) {
+      console.error("Google login error:", err);
+      setError(err instanceof Error ? err : new Error(err.message || "Failed to login with Google"));
       throw err;
     } finally {
       setLoading(false);
@@ -399,6 +587,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isOnline,
     login,
     register,
+    loginWithGoogle,
     logout,
     updateUserProfile
   };

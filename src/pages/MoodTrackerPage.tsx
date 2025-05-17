@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import AppLayout from "../components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -158,22 +157,15 @@ const MoodTrackerPage = () => {
   // Get chart data for visualization
   const chartData = getChartData();
 
-  // Calculate height percentage based on mood value
+  // Calculate height percentage based on mood value with improved scaling
   const getMoodHeight = (moodValue: number) => {
-    if (moodValue === 0) return '10%'; // Default height for no entry
+    if (moodValue === 0) return '0%'; // No height for no entry
     
-    // Good and Great moods (4,5) go up
-    if (moodValue > 3) {
-      return `${moodValue * 18}%`;
-    }
-    // Neutral mood (3) stays in the middle
-    else if (moodValue === 3) {
-      return '50%';
-    }
-    // Low and Very Low moods (1,2) go down
-    else {
-      return `${moodValue * 15}%`;
-    }
+    // Scale moods from 1-5 to appropriate percentages that won't overlap with headers
+    const maxBarHeight = 70; // Maximum percentage height for a bar
+    const scale = maxBarHeight / 5; // Scale factor
+    
+    return `${moodValue * scale}%`;
   };
 
   // Get baseline position for the chart (middle)
@@ -261,15 +253,15 @@ const MoodTrackerPage = () => {
 
           {/* Mood Chart */}
           <Card className="border-healing-200">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center text-healing-800">
                 <BarChart2 className="mr-2 h-5 w-5 text-healing-600" />
                 Mood Trends
               </CardTitle>
               <CardDescription>Your mood patterns over time</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-[200px] relative">
+            <CardContent className="pt-4">
+              <div className="h-[200px] relative" style={{ marginTop: '10px' }}>
                 {/* Baseline (neutral line) */}
                 <div 
                   className="absolute w-full h-px bg-gray-300" 
@@ -294,8 +286,9 @@ const MoodTrackerPage = () => {
                               position: 'absolute',
                               bottom: entry.mood <= 3 ? 'auto' : getBaselinePosition(),
                               top: entry.mood <= 3 ? getBaselinePosition() : 'auto',
+                              maxHeight: `calc(${getBaselinePosition()} - 10px)`, // Prevent overlap with header
                             }}
-                            title={entry.note || "No notes for this day"}
+                            title={`${moodDetail?.label || 'No mood'}: ${entry.note || "No notes for this day"}`}
                           ></div>
                         )}
                         <span className="absolute bottom-0 text-xs">{dayName}</span>

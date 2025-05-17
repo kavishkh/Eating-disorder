@@ -1,9 +1,8 @@
-
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, WifiOff, RefreshCw } from 'lucide-react';
+import { AlertTriangle, WifiOff, RefreshCw, ArrowLeft } from 'lucide-react';
 import OnboardingWelcome from '@/components/OnboardingWelcome';
 import OnboardingSteps from '@/components/OnboardingSteps';
 import OnboardingDisorderSelect from '@/components/OnboardingDisorderSelect';
@@ -16,8 +15,10 @@ const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [animateOut, setAnimateOut] = useState(false);
   const navigate = useNavigate();
-  const { updateUserProfile, currentUser, isOnline } = useAuth();
+  const { updateUserProfile, currentUser, isOnline, logout } = useAuth();
   const { toast } = useToast();
+  // Add ref for tracking initial load state
+  const hasInitiallyLoaded = useRef<boolean>(false);
 
   // Add state variables for the onboarding process
   const [selectedDisorder, setSelectedDisorder] = useState<string | null>(null);
@@ -27,7 +28,7 @@ const Onboarding = () => {
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  // Handle retry connection
+  // Handle retry
   const handleRetryConnection = () => {
     setIsRetrying(true);
     setError(null);
@@ -47,10 +48,34 @@ const Onboarding = () => {
   // Check if user has already completed onboarding
   useEffect(() => {
     console.log("Onboarding component mounted, currentUser:", currentUser);
-    if (currentUser?.onboardingCompleted) {
-      console.log("User already completed onboarding, redirecting to dashboard");
-      navigate('/dashboard');
+    
+    // If no user is present after a reasonable time, they're likely not logged in
+    const authCheckTimeout = setTimeout(() => {
+      if (!currentUser) {
+        console.log("No user found after timeout, redirecting to login");
+        navigate('/login');
+      }
+    }, 5000); // 5 second timeout for authentication check
+    
+    // If we have user data
+    if (currentUser) {
+      // Clear the timeout since we have a user
+      clearTimeout(authCheckTimeout);
+      console.log("User found, onboardingCompleted:", currentUser.onboardingCompleted);
+      
+      // Mark that we've loaded the user data
+      hasInitiallyLoaded.current = true;
+      
+      // If user has already completed onboarding, redirect to dashboard
+      if (currentUser.onboardingCompleted === true) {
+        console.log("User already completed onboarding, redirecting to dashboard");
+        navigate('/dashboard', { replace: true });
+      }
     }
+    
+    return () => {
+      clearTimeout(authCheckTimeout);
+    };
   }, [currentUser, navigate]);
 
   // Handle transition between steps with animation
@@ -101,12 +126,10 @@ const Onboarding = () => {
       
       console.log("Onboarding completed successfully, navigating to dashboard");
       
-      // Animate out before navigating
-      setAnimateOut(true);
-      setTimeout(() => {
-        // Navigate to dashboard
-        navigate('/dashboard');
-      }, 300);
+      // Don't use setTimeout for navigation as it can cause timing issues
+      // Use direct navigation instead
+      navigate('/dashboard');
+      
     } catch (error: any) {
       console.error("Failed to complete onboarding:", error);
       
@@ -156,9 +179,51 @@ const Onboarding = () => {
     return false;
   };
 
+  const handleNavigateBack = () => {
+    // If we're logged in, we need a more complete solution
+    if (currentUser) {
+      // Show loading toast
+      toast({
+        title: "Going back...",
+        description: "You'll be redirected to the welcome page."
+      });
+      
+      // Set the exit flag that we'll check in ProtectedRoute
+      localStorage.setItem('onboarding_exited', 'true');
+      
+      // Use the Auth context's logout function if it exists
+      if (typeof logout === 'function') {
+        logout().then(() => {
+          // After logout, navigate to the welcome page
+          navigate('/', { replace: true });
+        }).catch(error => {
+          console.error("Error during logout:", error);
+          // If logout fails, still navigate 
+          navigate('/', { replace: true });
+        });
+      } else {
+        // If logout function isn't available (shouldn't happen), just navigate
+        navigate('/', { replace: true });
+      }
+    } else {
+      // If not logged in, just navigate to the welcome page
+      navigate('/', { replace: true });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-healing-100 to-healing-200">
       <div className="container mx-auto px-4 py-8">
+        {/* Back button at the top left */}
+        <Button 
+          variant="ghost" 
+          onClick={handleNavigateBack} 
+          className="absolute left-4 top-4 flex items-center text-healing-700 hover:text-healing-900"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          <span>Back</span>
+        </Button>
+      
         {!isOnline && (
           <div className="mb-6 rounded-lg bg-amber-50 p-4 text-amber-800 shadow-sm">
             <div className="flex items-center justify-between">

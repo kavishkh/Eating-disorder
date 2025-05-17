@@ -3,7 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
+import { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 // Pages
 import WelcomePage from "./pages/WelcomePage";
@@ -24,6 +25,44 @@ import NutritionBasics from "./pages/EducationalHub/NutritionBasics";
 import CopingStrategies from "./pages/EducationalHub/CopingStrategies";
 import BodyImage from "./pages/EducationalHub/BodyImage";
 
+// Intelligent home route component
+const HomeRoute = () => {
+  const { currentUser, loading } = useAuth();
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // On first render, check if we're coming from a persisted session
+  useEffect(() => {
+    // Add a short delay to ensure auth state is properly loaded
+    const timer = setTimeout(() => {
+      setIsInitialLoad(false);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // If still in initial loading state, show loading spinner
+  if (loading || isInitialLoad) {
+    return <div className="flex h-screen w-full items-center justify-center">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-healing-300 border-t-healing-600"></div>
+    </div>;
+  }
+  
+  // If user is logged in
+  if (currentUser) {
+    // Check if they've completed onboarding
+    if (currentUser.onboardingCompleted) {
+      // Redirect to dashboard if onboarding is complete
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      // Redirect to onboarding if not complete
+      return <Navigate to="/onboarding" replace />;
+    }
+  }
+  
+  // If no user is logged in, show the welcome page
+  return <WelcomePage />;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -34,7 +73,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<WelcomePage />} />
+            <Route path="/" element={<HomeRoute />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/onboarding" element={

@@ -1,11 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-// import { getAnalytics } from "firebase/analytics"; // Optional
 
 // Your web app's Firebase configuration
-// IMPORTANT: Replace with your actual config values
-// Consider using environment variables for security: https://vitejs.dev/guide/env-and-mode.html
 const firebaseConfig = {
   apiKey: "AIzaSyAF1Swurg_GF5n6HKbvySocD7nNogrWDQ8",
   authDomain: "recovery-journey-e950b.firebaseapp.com",
@@ -21,6 +18,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// const analytics = getAnalytics(app); // Optional
 
-export { app, auth, db }; 
+// Create and configure Google provider with proper scopes
+const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+// Set persistent authentication - IMPORTANT for session persistence
+// This keeps the user logged in even after browser restarts or refreshes
+(async () => {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+    console.log("Firebase persistence set to LOCAL");
+    
+    // Store auth initialization status
+    window.localStorage.setItem('firebaseInitialized', 'true');
+  } catch (error) {
+    console.error("Error setting persistence:", error);
+  }
+})();
+
+export { app, auth, db, googleProvider };

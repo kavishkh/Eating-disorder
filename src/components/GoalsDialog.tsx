@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -26,9 +25,19 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
   goals,
   onSaveGoals,
 }) => {
-  const [editedGoals, setEditedGoals] = useState<string[]>([...goals]);
+  // Initialize with an empty array, we'll set it from props when dialog opens
+  const [editedGoals, setEditedGoals] = useState<string[]>([]);
   const [newGoal, setNewGoal] = useState("");
   const { toast } = useToast();
+
+  // Reset and sync with props when dialog opens
+  useEffect(() => {
+    if (open) {
+      // Create a new array to ensure we're not modifying the original
+      setEditedGoals(Array.isArray(goals) ? [...goals] : []);
+      console.log("Dialog opened, setting goals:", Array.isArray(goals) ? [...goals] : []);
+    }
+  }, [open, goals]);
 
   const handleAddGoal = () => {
     if (newGoal.trim() === "") {
@@ -40,14 +49,19 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
       return;
     }
 
-    setEditedGoals([...editedGoals, newGoal.trim()]);
-    setNewGoal("");
+    // Create a new array with all existing goals plus the new one
+    const updatedGoals = [...editedGoals, newGoal.trim()];
+    setEditedGoals(updatedGoals);
+    setNewGoal(""); // Clear input field
+    
+    console.log("Goals after adding:", updatedGoals); // Debug log
   };
 
   const handleRemoveGoal = (index: number) => {
     const updatedGoals = [...editedGoals];
     updatedGoals.splice(index, 1);
     setEditedGoals(updatedGoals);
+    console.log("Goals after removing:", updatedGoals); // Debug log
   };
 
   const handleEditGoal = (index: number, value: string) => {
@@ -57,10 +71,16 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
   };
 
   const handleSave = () => {
-    onSaveGoals(editedGoals);
+    // Filter out any empty goals before saving
+    const filteredGoals = editedGoals.filter(goal => goal.trim() !== "");
+    console.log("Saving goals:", filteredGoals); // Debug log
+    
+    // Make sure we're passing an array to the parent component
+    onSaveGoals(filteredGoals);
+    
     toast({
       title: "Goals updated",
-      description: "Your goals have been saved successfully",
+      description: `${filteredGoals.length} ${filteredGoals.length === 1 ? 'goal has' : 'goals have'} been saved successfully`,
     });
     onOpenChange(false);
   };
@@ -80,7 +100,7 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
             <p className="text-center text-gray-500 py-4">You haven't set any goals yet. Add your first goal below.</p>
           ) : (
             editedGoals.map((goal, index) => (
-              <div key={index} className="flex items-start space-x-2 p-3 bg-gray-50 rounded-md">
+              <div key={`goal-${index}`} className="flex items-start space-x-2 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1">
                   <Input 
                     value={goal}
@@ -109,6 +129,7 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
             className="flex-1 border-healing-200"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                e.preventDefault();
                 handleAddGoal();
               }
             }}
@@ -116,6 +137,7 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
           <Button 
             onClick={handleAddGoal} 
             className="bg-healing-500 hover:bg-healing-600 text-white"
+            type="button"
           >
             <Plus className="h-4 w-4 mr-1" /> Add
           </Button>
@@ -133,7 +155,7 @@ const GoalsDialog: React.FC<GoalsDialogProps> = ({
             onClick={handleSave}
             className="bg-healing-600 hover:bg-healing-700 text-white"
           >
-            <Save className="h-4 w-4 mr-1" /> Save Goals
+            <Save className="h-4 w-4 mr-1" /> Save Goals ({editedGoals.length})
           </Button>
         </DialogFooter>
       </DialogContent>

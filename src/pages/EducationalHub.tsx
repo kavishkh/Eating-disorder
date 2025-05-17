@@ -39,7 +39,7 @@ const EducationalHub = () => {
             <Utensils className="mr-2 h-4 w-4" /> Nutrition
           </NavLink>
           <NavLink to="/learn/coping" className={navLinkClasses}>
-              <Brain className="mr-2 h-4 w-4" /> Coping
+              <Brain className="mr-2 h-4 w-4" /> Mind Relaxing
           </NavLink>
           <NavLink to="/learn/body-image" className={navLinkClasses}>
             <Smile className="mr-2 h-4 w-4" /> Body Image
