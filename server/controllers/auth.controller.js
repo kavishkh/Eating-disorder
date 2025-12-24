@@ -7,8 +7,14 @@ export const register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
+        // Debug: Log what we received
+        console.log("REGISTER REQUEST BODY:", req.body);
+
         if (!name || !email || !password)
-            return res.status(400).json({ message: "All fields required" });
+            return res.status(400).json({
+                message: "All fields required",
+                received: req.body
+            });
 
         const exists = await User.findOne({ email });
         if (exists)

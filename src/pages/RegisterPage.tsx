@@ -58,6 +58,7 @@ const RegisterPage = () => {
     setIsSubmitting(true);
 
     try {
+      console.log("Registering with:", { name, email, password: "***" });
       await register(email, password, name);
       toast({
         title: "Account created",
