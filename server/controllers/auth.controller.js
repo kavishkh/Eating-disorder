@@ -2,6 +2,9 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+// Verify JWT_SECRET is loaded
+console.log("AUTH CONTROLLER: JWT_SECRET =", process.env.JWT_SECRET ? "✅ LOADED" : "❌ UNDEFINED");
+
 /* REGISTER */
 export const register = async (req, res) => {
     try {

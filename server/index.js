@@ -1,20 +1,29 @@
-import express from 'express';
-import mongoose from 'mongoose';
-import cors from 'cors';
+// MUST BE FIRST - Load environment variables before anything else
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth.routes.js';
-import moodRoutes from './routes/mood.js';
-import goalRoutes from './routes/goal.js';
-import chatRoutes from './routes/chat.js';
-import progressRoutes from './routes/progress.js';
-
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load .env from server directory
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Verify JWT_SECRET is loaded
+console.log('====== ENVIRONMENT CHECK ======');
+console.log('JWT_SECRET =', process.env.JWT_SECRET ? '✅ LOADED' : '❌ UNDEFINED');
+console.log('MONGODB_URI =', process.env.MONGODB_URI ? '✅ LOADED' : '❌ UNDEFINED (using fallback)');
+console.log('PORT =', process.env.PORT || '5000 (default)');
+console.log('================================');
+
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import authRoutes from './routes/auth.routes.js';
+import moodRoutes from './routes/mood.js';
+import goalRoutes from './routes/goal.js';
+import chatRoutes from './routes/chat.js';
+import progressRoutes from './routes/progress.js';
 
 const app = express();
 
