@@ -29,25 +29,32 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    console.log(`API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
+
     const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers,
     });
 
+    const data = await response.json().catch(() => ({ message: 'Request failed' }));
+
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || 'Request failed');
+        console.error('API Error Response:', data);
+        // Backend returns { message: "..." }, so we use that
+        const errorMessage = data.message || data.error || 'Request failed';
+        throw new Error(errorMessage);
     }
 
-    return response.json();
+    return data;
 };
 
 // Auth API
 export const authAPI = {
-    register: async (email: string, password: string, name: string) => {
+    register: async (name: string, email: string, password: string) => {
+        console.log('Registering user with:', { name, email, password: '***' });
         const data = await apiRequest('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ email, password, name }),
+            body: JSON.stringify({ name, email, password }),
         });
         if (data.token) {
             setAuthToken(data.token);
@@ -56,6 +63,7 @@ export const authAPI = {
     },
 
     login: async (email: string, password: string) => {
+        console.log('Logging in user with:', { email, password: '***' });
         const data = await apiRequest('/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
@@ -75,17 +83,6 @@ export const authAPI = {
             method: 'PUT',
             body: JSON.stringify(updates),
         });
-    },
-
-    loginWithGoogle: async (email: string, name: string, googleId: string) => {
-        const data = await apiRequest('/auth/google', {
-            method: 'POST',
-            body: JSON.stringify({ email, name, googleId }),
-        });
-        if (data.token) {
-            setAuthToken(data.token);
-        }
-        return data.user;
     },
 
     logout: () => {

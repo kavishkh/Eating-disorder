@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User as AppUser } from "@/types/types";
 import { useToast } from "@/hooks/use-toast";
-import { authAPI, setAuthToken, removeAuthToken } from "@/utils/api";
+import { authAPI, removeAuthToken } from "@/utils/api";
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -9,8 +9,7 @@ interface AuthContextType {
   error: Error | null;
   isOnline: boolean;
   login: (email: string, password: string) => Promise<AppUser | null>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  loginWithGoogle: () => Promise<AppUser | null>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateUserProfile: (data: Partial<AppUser>) => Promise<void>;
 }
@@ -66,12 +65,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = localStorage.getItem('token');
 
       if (!token) {
+        console.log("No token found, user not logged in");
         setLoading(false);
         return;
       }
 
       try {
+        console.log("Found token, fetching current user...");
         const user = await authAPI.getCurrentUser();
+        console.log("Current user fetched:", user);
         setCurrentUser(user);
 
         // Cache user data
@@ -80,13 +82,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('Failed to get current user:', err);
         localStorage.removeItem('token');
+        localStorage.removeItem('cachedUser');
       } finally {
         setLoading(false);
       }
     };
 
     initAuth();
-  }, [isOnline]);
+  }, []);
 
   // Login
   const login = async (email: string, password: string) => {
@@ -101,7 +104,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Attempting login for:", email);
       const res = await authAPI.login(email, password);
 
-      localStorage.setItem("token", res.token);
+      console.log("Login response:", res);
+
+      // Token is already set by authAPI.login
       const user = res.user;
       setCurrentUser(user);
 
@@ -121,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Register
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (name: string, email: string, password: string) => {
     setLoading(true);
     setError(null);
 
@@ -130,16 +135,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("You're offline. Please check your internet connection and try again.");
       }
 
-      console.log("Attempting to create user:", email);
-      const user = await authAPI.register(email, password, name);
+      console.log("Attempting to register user:", { name, email });
+      const user = await authAPI.register(name, email, password);
 
+      console.log("Registration response user:", user);
       setCurrentUser(user);
-      console.log("Registration successful for:", email);
 
+      // Cache user data
+      localStorage.setItem('cachedUser', JSON.stringify(user));
+
+      console.log("Registration successful for:", email);
       setLoading(false);
 
-      // New users always need to complete onboarding
-      window.location.href = "/onboarding";
       return;
     } catch (err: any) {
       console.error("Registration error:", err);
@@ -147,64 +154,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw err;
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Google Login
-  const loginWithGoogle = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (!isOnline) {
-        throw new Error("You're offline. Please check your internet connection and try again.");
-      }
-
-      // Load Google Sign-In library
-      const google = (window as any).google;
-      if (!google) {
-        throw new Error("Google Sign-In library not loaded");
-      }
-
-      return new Promise<AppUser | null>((resolve, reject) => {
-        google.accounts.id.initialize({
-          client_id: "312698346068-your-client-id.apps.googleusercontent.com", // Replace with your actual client ID
-          callback: async (response: any) => {
-            try {
-              // Decode the JWT token to get user info
-              const payload = JSON.parse(atob(response.credential.split('.')[1]));
-
-              const user = await authAPI.loginWithGoogle(
-                payload.email,
-                payload.name,
-                payload.sub // Google user ID
-              );
-
-              setCurrentUser(user);
-
-              // Cache user data
-              localStorage.setItem('cachedUser', JSON.stringify(user));
-              localStorage.setItem('userOnboardingComplete', user.onboardingCompleted ? 'true' : 'false');
-
-              console.log("Google login successful");
-              setLoading(false);
-              resolve(user);
-            } catch (err: any) {
-              console.error("Google login error:", err);
-              setError(err);
-              setLoading(false);
-              reject(err);
-            }
-          },
-        });
-
-        google.accounts.id.prompt(); // Show the One Tap dialog
-      });
-    } catch (err: any) {
-      console.error("Google login initialization error:", err);
-      setError(err);
-      setLoading(false);
-      throw err;
     }
   };
 
@@ -218,6 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear cached data
       localStorage.removeItem('cachedUser');
       localStorage.removeItem('userOnboardingComplete');
+      localStorage.removeItem('token');
 
       console.log("User signed out successfully");
     } catch (err: any) {
@@ -302,7 +252,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isOnline,
     login,
     register,
-    loginWithGoogle,
     logout,
     updateUserProfile
   };

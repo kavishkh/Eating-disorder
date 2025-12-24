@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, UserPlus, AlertCircle } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 
 const RegisterPage = () => {
   const [name, setName] = useState("");
@@ -51,6 +50,26 @@ const RegisterPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate name
+    if (!name.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email
+    if (!email.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your email",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!validatePassword()) {
       return;
     }
@@ -58,8 +77,10 @@ const RegisterPage = () => {
     setIsSubmitting(true);
 
     try {
-      console.log("Registering with:", { name, email, password: "***" });
-      await register(email, password, name);
+      // IMPORTANT: Pass name, email, password in correct order
+      console.log("Submitting registration:", { name, email, password: "***" });
+      await register(name, email, password);
+
       toast({
         title: "Account created",
         description: "Your account has been successfully created",
@@ -72,31 +93,24 @@ const RegisterPage = () => {
     } catch (err: any) {
       console.error("Registration error:", err);
 
-      // Display more specific error messages based on Firebase error codes
-      let errorMessage = "Failed to create account. Please try again.";
+      // Display error message from backend
+      let errorMessage = err.message || "Failed to create account. Please try again.";
 
-      if (err.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already in use. Please try another email or log in.";
-      } else if (err.code === "auth/invalid-email") {
-        errorMessage = "Invalid email address. Please check and try again.";
-      } else if (err.code === "auth/weak-password") {
-        errorMessage = "Password is too weak. Please use a stronger password.";
-      } else if (err.code === "auth/configuration-not-found") {
-        errorMessage = "Authentication service is unavailable. Please try again later.";
-      } else if (err.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your connection and try again.";
+      // Handle specific error messages
+      if (errorMessage.includes("already exists")) {
+        errorMessage = "This email is already registered. Please try logging in instead.";
+      } else if (errorMessage.includes("All fields required")) {
+        errorMessage = "Please fill in all fields (name, email, password).";
       }
 
       toast({
-        title: "Error",
+        title: "Registration Error",
         description: errorMessage,
         variant: "destructive",
       });
       setIsSubmitting(false);
     }
   };
-
-
 
   return (
     <div className="app-container flex min-h-screen flex-col items-center justify-center p-4">
@@ -115,7 +129,7 @@ const RegisterPage = () => {
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-600 flex items-start">
                   <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                  <span>An unexpected error occurred. Please try again later.</span>
+                  <span>{error.message || "An unexpected error occurred. Please try again later."}</span>
                 </div>
               )}
 
@@ -148,6 +162,7 @@ const RegisterPage = () => {
                 <Input
                   id="password"
                   type="password"
+                  placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -159,6 +174,7 @@ const RegisterPage = () => {
                 <Input
                   id="confirmPassword"
                   type="password"
+                  placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required

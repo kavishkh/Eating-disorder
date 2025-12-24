@@ -8,32 +8,44 @@ export const register = async (req, res) => {
         const { name, email, password } = req.body;
 
         // Debug: Log what we received
-        console.log("REGISTER REQUEST BODY:", req.body);
+        console.log("REGISTER REQUEST BODY:", JSON.stringify(req.body, null, 2));
 
-        if (!name || !email || !password)
+        // Validate all required fields
+        if (!name || !email || !password) {
+            console.log("Missing fields:", { name: !!name, email: !!email, password: !!password });
             return res.status(400).json({
                 message: "All fields required",
-                received: req.body
+                received: { name: !!name, email: !!email, password: !!password }
             });
+        }
 
-        const exists = await User.findOne({ email });
-        if (exists)
+        // Check if user already exists
+        const exists = await User.findOne({ email: email.toLowerCase() });
+        if (exists) {
+            console.log("User already exists:", email);
             return res.status(400).json({ message: "User already exists" });
+        }
 
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Create user
         const user = await User.create({
-            name,
-            email,
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
             password: hashedPassword
         });
 
+        console.log("User created successfully:", user._id);
+
+        // Generate JWT token
         const token = jwt.sign(
             { id: user._id },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
+        // Return success response
         res.status(201).json({
             token,
             user: {
@@ -45,7 +57,7 @@ export const register = async (req, res) => {
 
     } catch (err) {
         console.error("REGISTER ERROR:", err);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: "Server error: " + err.message });
     }
 };
 
@@ -54,20 +66,39 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const user = await User.findOne({ email });
-        if (!user)
-            return res.status(400).json({ message: "Invalid credentials" });
+        // Debug: Log what we received
+        console.log("LOGIN REQUEST BODY:", JSON.stringify(req.body, null, 2));
 
+        // Validate required fields
+        if (!email || !password) {
+            console.log("Missing login fields:", { email: !!email, password: !!password });
+            return res.status(400).json({ message: "Email and password required" });
+        }
+
+        // Find user by email (case-insensitive)
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            console.log("User not found:", email);
+            return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        // Compare passwords
         const match = await bcrypt.compare(password, user.password);
-        if (!match)
+        if (!match) {
+            console.log("Password mismatch for:", email);
             return res.status(400).json({ message: "Invalid credentials" });
+        }
 
+        console.log("User logged in successfully:", user._id);
+
+        // Generate JWT token
         const token = jwt.sign(
             { id: user._id },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
+        // Return success response
         res.json({
             token,
             user: {
@@ -79,11 +110,26 @@ export const login = async (req, res) => {
 
     } catch (err) {
         console.error("LOGIN ERROR:", err);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: "Server error: " + err.message });
     }
 };
 
 /* GET CURRENT USER */
 export const me = async (req, res) => {
-    res.json(req.user);
+    try {
+        if (!req.user) {
+            return res.status(401).json({ message: "Not authenticated" });
+        }
+
+        console.log("ME endpoint called for user:", req.user._id);
+
+        res.json({
+            id: req.user._id,
+            name: req.user.name,
+            email: req.user.email
+        });
+    } catch (err) {
+        console.error("ME ERROR:", err);
+        res.status(500).json({ message: "Server error: " + err.message });
+    }
 };
