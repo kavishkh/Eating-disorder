@@ -1,5 +1,4 @@
-import { addDoc, collection, getDocs, query, where, orderBy, serverTimestamp } from "firebase/firestore";
-import { db } from "@/utils/firebase";
+import { chatAPI } from "@/utils/api";
 
 // Define message types
 export interface ChatMessage {
@@ -16,239 +15,326 @@ export interface ChatSession {
   date: Date;
 }
 
-// Gemini API configuration
-const GEMINI_API_KEY = "AIzaSyC4NJz4xAU4LcwjKxbgVtYpE6smTvc1PVY";
-const GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+// Detect user's mood from their message
+function detectUserMood(message: string): {
+  mood: string;
+  intensity: 'low' | 'medium' | 'high';
+  keywords: string[];
+} {
+  const lowerMessage = message.toLowerCase();
 
-// System prompt for the chatbot - enhanced to provide more helpful responses
-const RECOVERY_COMPANION_PROMPT = `
-You are Recovery Companion, a supportive AI assistant in an eating disorder recovery app. Your primary goal is to provide meaningful, practical support for users recovering from eating disorders.
+  // Anxiety indicators
+  const anxietyWords = ['anxious', 'anxiety', 'panic', 'scared', 'worried', 'nervous', 'afraid', 'stress', 'terrified'];
+  const anxietyCount = anxietyWords.filter(word => lowerMessage.includes(word)).length;
 
-Please provide responses that are:
-1. Specific and actionable - offer concrete strategies, not just general encouragement
-2. Recovery-oriented and hopeful - focus on progress over perfection
-3. Empathetic but professional - validate feelings without reinforcing disordered thoughts
-4. Free of specific mentions of weights, calories, or BMI numbers
-5. Never prescriptive about specific foods, diet plans, or exercise regimens
-6. Focused on emotional well-being and healthy coping mechanisms
+  // Sadness indicators
+  const sadnessWords = ['sad', 'depressed', 'hopeless', 'alone', 'lonely', 'worthless', 'cry', 'crying', 'empty', 'numb'];
+  const sadnessCount = sadnessWords.filter(word => lowerMessage.includes(word)).length;
 
-When responding to users:
-- If they express difficulty with eating: Suggest small, manageable steps like eating one regular meal, having a snack, or reaching out to their support person.
-- If they express negative body image: Redirect focus to body functionality and self-compassion exercises.
-- If they mention relapse or setbacks: Normalize these as part of recovery and encourage them to be gentle with themselves.
-- If they're having a good day: Celebrate this specifically and help them identify what worked well.
-- If they mention meal plans or treatment: Encourage adherence to professional advice while validating their challenges.
+  // Anger/frustration indicators
+  const angerWords = ['angry', 'mad', 'frustrated', 'hate', 'annoyed', 'irritated', 'furious'];
+  const angerCount = angerWords.filter(word => lowerMessage.includes(word)).length;
 
-Always respond in a warm, personable tone. Provide 2-4 sentences that are specific to eating disorder recovery context.
+  // Happiness indicators
+  const happyWords = ['happy', 'good', 'better', 'proud', 'excited', 'great', 'wonderful', 'amazing'];
+  const happyCount = happyWords.filter(word => lowerMessage.includes(word)).length;
 
-If the user mentions crisis or self-harm, always include: "Please contact the Crisis Text Line (text HOME to 741741) for immediate support."
-`;
+  // Overwhelm indicators
+  const overwhelmWords = ['overwhelmed', 'too much', 'can\'t handle', 'giving up', 'exhausted', 'tired'];
+  const overwhelmCount = overwhelmWords.filter(word => lowerMessage.includes(word)).length;
 
-// Fallback responses when API is not available - enhanced to be more specific and helpful
-const FALLBACK_RESPONSES = [
-  "Recovery involves rebuilding your relationship with food and your body. Try focusing on one small act of self-care today that isn't related to appearance.",
-  "Eating regularly throughout the day is an important part of recovery, even when it feels difficult. What's one small nutrition goal you could work on today?",
-  "Recovery isn't just about food—it's about reclaiming your life from ED thoughts. What activities or interests did you enjoy before your eating disorder became prominent?",
-  "Body image healing takes time and practice. Try to notice one thing your body helped you do today, rather than focusing on how it looks.",
-  "Challenging eating disorder thoughts is a crucial skill in recovery. When you notice a negative thought, try asking 'Is this my eating disorder speaking?'",
-  "Setbacks in recovery are normal and don't erase your progress. What helped you move forward after difficult moments in the past?",
-  "Self-compassion is essential in recovery. How would you respond to a friend going through what you're experiencing right now?",
-  "Recovery requires building a life beyond the eating disorder. What values or relationships would you like to prioritize as you heal?",
-  "Meal support can be helpful during challenging eating times. Is there someone supportive you could eat with or call before/after meals?",
-  "Recovery means honoring your body's needs for both nourishment and rest. What's one way you could listen to what your body needs today?"
-];
+  // Determine primary mood
+  const moodScores = {
+    anxious: anxietyCount,
+    sad: sadnessCount,
+    angry: angerCount,
+    happy: happyCount,
+    overwhelmed: overwhelmCount
+  };
 
-// Function to check if we can connect to the API
-const checkApiConnectivity = async (): Promise<boolean> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`, {
-      signal: controller.signal,
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch (error) {
-    console.error('API connectivity check failed:', error);
-    return false;
-  }
-};
+  const primaryMood = Object.entries(moodScores).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+  const moodScore = moodScores[primaryMood];
 
-// Get a random fallback response
-const getFallbackResponse = (userMessage: string): string => {
-  // Check for crisis-related keywords to provide appropriate response
-  const crisisKeywords = ['suicide', 'kill myself', 'end my life', 'harm myself', 'self harm', 'die'];
-  
-  if (crisisKeywords.some(keyword => userMessage.toLowerCase().includes(keyword))) {
-    return "I'm concerned about what you're sharing. Please contact the Crisis Text Line (text HOME to 741741) for immediate support. They have trained counselors available 24/7 to help you through this difficult time.";
-  }
-  
-  // Return a random supportive message
-  const randomIndex = Math.floor(Math.random() * FALLBACK_RESPONSES.length);
-  return FALLBACK_RESPONSES[randomIndex];
-};
+  // Determine intensity
+  let intensity: 'low' | 'medium' | 'high' = 'low';
+  if (moodScore >= 3) intensity = 'high';
+  else if (moodScore >= 2) intensity = 'medium';
+  else if (moodScore >= 1) intensity = 'low';
 
-// Function to get a response using Gemini API using direct fetch calls
-export const getChatGPTResponse = async (userMessage: string, conversationHistory: ChatMessage[] = []): Promise<string> => {
-  // Add retry mechanism for API calls
-  const maxRetries = 3;
-  let retryCount = 0;
-
-  // Check network connectivity first
-  if (!navigator.onLine) {
-    console.log("Network is offline");
-    return getFallbackResponse(userMessage) + " (You appear to be offline. Messages will be available when your connection is restored.)";
+  // If no clear mood, check for neutral/confused
+  if (moodScore === 0) {
+    return {
+      mood: 'neutral',
+      intensity: 'low',
+      keywords: []
+    };
   }
 
-  // Check API connectivity
-  const isApiAvailable = await checkApiConnectivity();
-  if (!isApiAvailable) {
-    console.log("API is unreachable");
-    return getFallbackResponse(userMessage) + " (I'm having trouble connecting to my services right now. Please try again in a moment.)";
-  }
+  return {
+    mood: primaryMood,
+    intensity,
+    keywords: Object.entries(moodScores)
+      .filter(([_, count]) => count > 0)
+      .map(([mood, _]) => mood)
+  };
+}
 
-  while (retryCount < maxRetries) {
-    try {
-      console.log("Preparing to call Gemini API with direct fetch...");
-      
-      // Create context from conversation history
-      let contextMessage = "";
-      if (conversationHistory.length > 0) {
-        const lastMessage = conversationHistory[conversationHistory.length - 1];
-        if (lastMessage.sender === "ai") {
-          contextMessage = `\nYour last response was: "${lastMessage.content}"`;
-        }
-      }
-      
-      // Create the prompt
-      const promptText = `
-${RECOVERY_COMPANION_PROMPT}
+// Generate response based on user's mood
+function generateMoodBasedResponse(
+  userMessage: string,
+  moodData: { mood: string; intensity: string; keywords: string[] },
+  conversationHistory: ChatMessage[]
+): string {
+  const { mood, intensity } = moodData;
+  const lowerMessage = userMessage.toLowerCase();
 
-${contextMessage}
+  // Check if this is a follow-up to a previous question
+  const lastAIMessage = conversationHistory.filter(m => m.sender === 'ai').slice(-1)[0];
+  const askedQuestion = lastAIMessage?.content.includes('?');
 
-User message: "${userMessage}"
-
-Your brief response (1-3 sentences):`;
-
-      // Prepare request body
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              { text: promptText }
-            ]
-          }
-        ],
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 200
-        }
-      };
-      
-      console.log("Calling Gemini API with direct fetch...");
-      
-      // Set up abort controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
-      // Make the API call
-      const response = await fetch(`${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error(`API Error: ${response.status} ${response.statusText}`, errorData);
-        throw new Error(`API Error: ${response.status} - ${errorData}`);
-      }
-      
-      const data = await response.json();
-      console.log("Received API response:", data);
-      
-      // Extract the text from the response
-      if (data.candidates && 
-          data.candidates[0] && 
-          data.candidates[0].content && 
-          data.candidates[0].content.parts && 
-          data.candidates[0].content.parts[0] && 
-          data.candidates[0].content.parts[0].text) {
-        
-        const responseText = data.candidates[0].content.parts[0].text.trim();
-        console.log("Extracted text from response:", responseText);
-        
-        if (!responseText) {
-          throw new Error("Empty response from API");
-        }
-        
-        return responseText;
-      } else {
-        console.error("Unexpected API response structure:", data);
-        throw new Error("Unexpected API response structure");
-      }
-      
-    } catch (error) {
-      console.error(`Error getting AI response (attempt ${retryCount + 1}/${maxRetries}):`, error);
-      
-      retryCount++;
-      if (retryCount < maxRetries) {
-        console.log(`Retrying... (${retryCount}/${maxRetries})`);
-        // Wait for a short time before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
-      }
-      
-      // If all retries fail, use fallback response
-      if (error.message === "Failed to fetch" || 
-          error.message.includes("NetworkError") || 
-          error.message.includes("network") ||
-          error.message.includes("timed out") ||
-          error.message.includes("abort")) {
-        return getFallbackResponse(userMessage) + " (I'm having trouble connecting to my services right now. Please try again in a moment.)";
-      }
-      
-      // Preserve the original error for debugging instead of creating a generic message
-      throw error;
+  // ANXIOUS MOOD RESPONSES
+  if (mood === 'anxious') {
+    if (intensity === 'high') {
+      // High anxiety - immediate calming + question
+      const responses = [
+        `Okay, I can hear that you're really anxious right now. First, let's get you grounded. Take a slow breath with me - in for 4, hold for 4, out for 4. ${askCalmingQuestion(lowerMessage)}`,
+        `I hear you, and I know this anxiety feels overwhelming. You're safe right now, even though it doesn't feel like it. Let's try something: Can you name 5 things you can see around you right now? This will help ground you. ${askCalmingQuestion(lowerMessage)}`,
+        `That sounds really intense, and I'm sorry you're feeling this way. Let's pause for a moment. Put your hand on your heart and take three slow breaths. ${askCalmingQuestion(lowerMessage)}`
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    } else if (intensity === 'medium') {
+      // Medium anxiety - validate + explore + question
+      const responses = [
+        `I hear that you're feeling anxious. That's really tough. ${askExploringQuestion('anxiety', lowerMessage)}`,
+        `Anxiety can feel so overwhelming. You're not alone in this. ${askExploringQuestion('anxiety', lowerMessage)}`,
+        `I can sense the anxiety in what you're sharing. Let's talk through this together. ${askExploringQuestion('anxiety', lowerMessage)}`
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    } else {
+      // Low anxiety - acknowledge + question
+      const responses = [
+        `I notice you're feeling a bit anxious. ${askExploringQuestion('anxiety', lowerMessage)}`,
+        `It sounds like there's some anxiety there. ${askExploringQuestion('anxiety', lowerMessage)}`
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
     }
   }
-  
-  // This should never be reached due to the retry logic, but TypeScript needs it
-  return getFallbackResponse(userMessage);
+
+  // SAD MOOD RESPONSES
+  if (mood === 'sad') {
+    if (intensity === 'high') {
+      // High sadness - deep empathy + question
+      const responses = [
+        `I'm really sorry you're feeling this way. That sounds so painful, and I want you to know that your feelings are completely valid. ${askSupportiveQuestion('sadness', lowerMessage)}`,
+        `I can hear how much you're hurting right now, and I'm here with you. You don't have to go through this alone. ${askSupportiveQuestion('sadness', lowerMessage)}`,
+        `This sounds really heavy, and I'm so sorry you're carrying this. ${askSupportiveQuestion('sadness', lowerMessage)}`
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    } else {
+      // Medium/low sadness - validate + question
+      const responses = [
+        `I hear that you're feeling down. ${askSupportiveQuestion('sadness', lowerMessage)}`,
+        `That sounds tough. I'm here to listen. ${askSupportiveQuestion('sadness', lowerMessage)}`
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    }
+  }
+
+  // ANGRY/FRUSTRATED MOOD RESPONSES
+  if (mood === 'angry') {
+    const responses = [
+      `I can hear the frustration in what you're sharing, and that's completely understandable. ${askValidatingQuestion('anger', lowerMessage)}`,
+      `It sounds like you're really frustrated right now. Your feelings are valid. ${askValidatingQuestion('anger', lowerMessage)}`,
+      `I get that you're angry about this. That makes total sense. ${askValidatingQuestion('anger', lowerMessage)}`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // HAPPY MOOD RESPONSES
+  if (mood === 'happy') {
+    const responses = [
+      `That's wonderful! I'm so happy for you! 🌟 ${askCelebratingQuestion(lowerMessage)}`,
+      `This is amazing! I love hearing this! ${askCelebratingQuestion(lowerMessage)}`,
+      `I'm so glad you're feeling good! That's fantastic! ${askCelebratingQuestion(lowerMessage)}`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // OVERWHELMED MOOD RESPONSES
+  if (mood === 'overwhelmed') {
+    const responses = [
+      `Okay, I hear you - everything feels like too much right now. Let's break this down together. ${askPrioritizingQuestion(lowerMessage)}`,
+      `When everything feels overwhelming, we need to take it one step at a time. ${askPrioritizingQuestion(lowerMessage)}`,
+      `I can sense you're feeling really overwhelmed. Let's figure out what we can tackle first. ${askPrioritizingQuestion(lowerMessage)}`
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // NEUTRAL/UNCLEAR MOOD - Ask to understand better
+  return askUnderstandingQuestion(lowerMessage);
+}
+
+// Generate calming questions for anxious users
+function askCalmingQuestion(message: string): string {
+  if (message.includes('eat') || message.includes('food') || message.includes('meal')) {
+    const questions = [
+      "What's the smallest, easiest thing you could try eating right now? Even just a few bites?",
+      "Is there someone you could call to sit with you while you eat? Sometimes that helps.",
+      "What usually helps you feel a bit calmer when you're anxious about eating?"
+    ];
+    return questions[Math.floor(Math.random() * questions.length)];
+  }
+
+  const questions = [
+    "What triggered this anxiety? Sometimes naming it helps.",
+    "Is there something specific that's making you feel this way right now?",
+    "What's one small thing that might help you feel even a tiny bit calmer?",
+    "Have you tried any grounding techniques before? What's worked for you in the past?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate exploring questions for anxiety
+function askExploringQuestion(emotion: string, message: string): string {
+  if (message.includes('eat') || message.includes('food')) {
+    const questions = [
+      "What about eating is making you feel anxious right now?",
+      "Is it a specific food, or the act of eating itself that feels hard?",
+      "What thoughts are coming up for you around food right now?"
+    ];
+    return questions[Math.floor(Math.random() * questions.length)];
+  }
+
+  const questions = [
+    "What's going through your mind right now? Can you tell me more?",
+    "When did you start feeling this way? Was there a specific trigger?",
+    "What's the hardest part about what you're experiencing?",
+    "How long have you been feeling like this?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate supportive questions for sadness
+function askSupportiveQuestion(emotion: string, message: string): string {
+  const questions = [
+    "Do you want to talk about what's making you feel this way?",
+    "What's been the hardest part of today for you?",
+    "Is there anyone in your life you feel comfortable reaching out to right now?",
+    "What do you need most right now - someone to listen, or help figuring out what to do?",
+    "Have you been feeling this way for a while, or did something specific happen?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate validating questions for anger
+function askValidatingQuestion(emotion: string, message: string): string {
+  const questions = [
+    "What happened that made you feel this way?",
+    "That sounds really frustrating. Do you want to tell me more about it?",
+    "What's making you most angry about this situation?",
+    "How long have you been feeling frustrated about this?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate celebrating questions for happiness
+function askCelebratingQuestion(message: string): string {
+  const questions = [
+    "Tell me more - what made today so good?",
+    "What do you think helped you feel this way? Let's remember it!",
+    "That's amazing! What was the best part?",
+    "I love this! What are you most proud of?",
+    "What happened that made you feel so good?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate prioritizing questions for overwhelm
+function askPrioritizingQuestion(message: string): string {
+  const questions = [
+    "What's the ONE thing that feels most urgent right now?",
+    "If you could only tackle one thing today, what would it be?",
+    "What's making you feel most overwhelmed - can you name the biggest thing?",
+    "Let's start small - what's one tiny step you could take right now?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Generate understanding questions for unclear mood
+function askUnderstandingQuestion(message: string): string {
+  const questions = [
+    "How are you feeling about all of this? I want to understand better.",
+    "What's on your mind right now? Tell me more.",
+    "How has your day been going? What's been happening?",
+    "I'm here to listen. What do you need to talk about?",
+    "What's the main thing that's bothering you right now?"
+  ];
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+// Handle specific situations
+function handleSpecificSituations(message: string): string | null {
+  const lowerMessage = message.toLowerCase();
+
+  // Greetings
+  if (lowerMessage.match(/^(hi|hello|hey|good morning|good afternoon)/)) {
+    const greetings = [
+      "Hey! I'm so glad you're here. How are you doing today? What's on your mind?",
+      "Hi there! It's good to hear from you. How are you feeling right now?",
+      "Hello! How's your day going so far? What would you like to talk about?",
+      "Hey friend! What's going on with you today?"
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  }
+
+  // Diet/weight questions
+  if (lowerMessage.includes('diet') || lowerMessage.includes('lose weight') || lowerMessage.includes('weight loss') || lowerMessage.includes('diet plan')) {
+    return "Hey, I get that you're thinking about this, but honestly? Diets can be really harmful, especially in recovery. They usually make things worse, not better. What's really going on? What made you start thinking about dieting? I'm here to listen and help you figure out what you actually need right now. 💙";
+  }
+
+  // Crisis
+  if (lowerMessage.includes('suicide') || lowerMessage.includes('kill myself') || lowerMessage.includes('self-harm') || lowerMessage.includes('hurt myself') || lowerMessage.includes('end it all')) {
+    return "I'm really worried about you right now, and I need you to know that you don't have to go through this alone. Please, please reach out for help right now. Text HOME to 741741 (Crisis Text Line) or call 988 (Suicide Prevention Lifeline). These people are trained to help and they care. You matter so much. If you have a therapist or someone you trust, please call them too. Can you promise me you'll reach out to one of these resources? 💙";
+  }
+
+  // Thank you
+  if (lowerMessage.includes('thank')) {
+    return "You're so welcome! I'm always here when you need to talk. How are you feeling now? Is there anything else on your mind?";
+  }
+
+  return null;
+}
+
+// Main function - generates intelligent, mood-aware responses
+export const getChatGPTResponse = async (
+  userMessage: string,
+  conversationHistory: ChatMessage[] = []
+): Promise<string> => {
+  console.log("Analyzing message and generating response...");
+
+  // Add natural typing delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Check for specific situations first
+  const specificResponse = handleSpecificSituations(userMessage);
+  if (specificResponse) {
+    return specificResponse;
+  }
+
+  // Detect user's mood
+  const moodData = detectUserMood(userMessage);
+  console.log("Detected mood:", moodData);
+
+  // Generate mood-based response with questions
+  const response = generateMoodBasedResponse(userMessage, moodData, conversationHistory);
+
+  return response;
 };
 
 // Save chat message to user's account
 export const saveChatMessage = async (userId: string, message: ChatMessage): Promise<void> => {
   try {
-    await addDoc(collection(db, "chatMessages"), {
-      userId,
-      sender: message.sender,
-      content: message.content,
-      timestamp: serverTimestamp()
-    });
+    await chatAPI.saveMessage(message.content, message.sender === "user");
   } catch (error) {
     console.error("Error saving chat message:", error);
     throw error;
@@ -258,26 +344,13 @@ export const saveChatMessage = async (userId: string, message: ChatMessage): Pro
 // Get chat history for a user
 export const getUserChatHistory = async (userId: string): Promise<ChatMessage[]> => {
   try {
-    const chatQuery = query(
-      collection(db, "chatMessages"),
-      where("userId", "==", userId),
-      orderBy("timestamp", "asc")
-    );
-    
-    const querySnapshot = await getDocs(chatQuery);
-    const messages: ChatMessage[] = [];
-    
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      messages.push({
-        id: doc.id,
-        sender: data.sender,
-        content: data.content,
-        timestamp: data.timestamp?.toDate() || new Date()
-      });
-    });
-    
-    return messages;
+    const messages = await chatAPI.getHistory();
+    return messages.map((msg: any) => ({
+      id: msg._id || msg.id,
+      sender: msg.isUser ? "user" : "ai",
+      content: msg.content,
+      timestamp: new Date(msg.timestamp)
+    }));
   } catch (error) {
     console.error("Error getting chat history:", error);
     return [];

@@ -22,10 +22,10 @@ interface MoodTrendWidgetProps {
   showTitle?: boolean;
 }
 
-const MoodTrendWidget = ({ 
-  limit = 7, 
-  height = 160, 
-  showTitle = true 
+const MoodTrendWidget = ({
+  limit = 7,
+  height = 160,
+  showTitle = true
 }: MoodTrendWidgetProps) => {
   const [moodData, setMoodData] = useState<MoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,36 +37,38 @@ const MoodTrendWidget = ({
   };
 
   useEffect(() => {
-    const fetchMoodData = () => {
+    const fetchMoodData = async () => {
       setLoading(true);
-      
+
       try {
-        const storedMoods = localStorage.getItem('moodHistory');
-        if (storedMoods) {
-          const parsedMoods = JSON.parse(storedMoods);
-          // Filter moods for current user if logged in
-          const userMoods = currentUser?.id 
-            ? parsedMoods.filter((mood: MoodEntry) => mood.userId === currentUser.id)
-            : parsedMoods;
-          
-          // Get the last 'limit' days of mood data
-          const last7Days = [...Array(limit)].map((_, i) => {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            return date.toISOString().split('T')[0];
-          }).reverse();
-          
-          // Map the dates to mood entries or use a default value
-          const chartData = last7Days.map(date => {
-            const entry = userMoods.find((entry: MoodEntry) => entry.date === date);
-            return entry || { date, mood: 0, note: "", userId: currentUser?.id || 'anonymous' };
-          });
-          
-          setMoodData(chartData);
+        if (!currentUser?.id) {
+          setMoodData([]);
+          setLoading(false);
+          return;
         }
+
+        // Import the mood service
+        const { getUserRecentMoodEntries } = await import('../../services/moodService');
+
+        // Fetch mood data from MongoDB
+        const moods = await getUserRecentMoodEntries(currentUser.id, limit);
+
+        // Get the last 'limit' days
+        const lastDays = [...Array(limit)].map((_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          return date.toISOString().split('T')[0];
+        }).reverse();
+
+        // Map the dates to mood entries or use a default value
+        const chartData = lastDays.map(date => {
+          const entry = moods.find((entry: MoodEntry) => entry.date === date);
+          return entry || { date, mood: 0, note: "", userId: currentUser.id };
+        });
+
+        setMoodData(chartData);
       } catch (error) {
-        console.error("Failed to parse mood history:", error);
-        // If parsing fails, start with empty array
+        console.error("Failed to fetch mood data:", error);
         setMoodData([]);
       } finally {
         setLoading(false);
@@ -79,11 +81,11 @@ const MoodTrendWidget = ({
   // Calculate height percentage for mood bars with improved scaling
   const getMoodHeight = (moodValue: number) => {
     if (moodValue === 0) return '0%'; // No height for no entry
-    
+
     // Scale moods from 1-5 to appropriate percentages that won't overlap with headers
     const maxBarHeight = 65; // Maximum percentage height for a bar
     const scale = maxBarHeight / 5; // Scale factor
-    
+
     return `${moodValue * scale}%`;
   };
 
@@ -119,32 +121,31 @@ const MoodTrendWidget = ({
         </CardHeader>
       )}
       <CardContent className="pt-4">
-        <div 
-          className="relative" 
-          style={{ 
+        <div
+          className="relative"
+          style={{
             height: `${height}px`,
             marginTop: '10px' // Add margin to ensure separation from header
           }}
         >
           {/* Baseline (neutral line) */}
-          <div 
-            className="absolute w-full h-px bg-gray-300" 
+          <div
+            className="absolute w-full h-px bg-gray-300"
             style={{ top: getBaselinePosition() }}
           ></div>
-          
+
           <div className="flex h-full w-full items-end justify-between">
             {moodData.map((entry, i) => {
               const moodDetail = entry.mood ? getMoodDetails(entry.mood) : null;
               const dayName = format(new Date(entry.date), 'EEE');
-              
+
               return (
                 <div key={i} className="flex flex-col items-center relative h-full">
                   {entry.mood > 0 && (
                     <div
-                      className={`w-8 rounded-sm transition-all hover:opacity-80 ${
-                        moodDetail?.bg || 'bg-gray-100 bg-opacity-30'
-                      }`}
-                      style={{ 
+                      className={`w-8 rounded-sm transition-all hover:opacity-80 ${moodDetail?.bg || 'bg-gray-100 bg-opacity-30'
+                        }`}
+                      style={{
                         height: getMoodHeight(entry.mood),
                         position: 'absolute',
                         bottom: entry.mood <= 3 ? 'auto' : getBaselinePosition(),

@@ -1,19 +1,10 @@
-
-import { collection, addDoc, getDocs, query, where, orderBy, doc, updateDoc, deleteDoc, getDoc, setDoc, Timestamp } from "firebase/firestore";
-import { db } from "../utils/firebase";
 import { MoodEntry, ProgressMetrics } from "@/types/types";
+import { moodAPI, progressAPI } from "@/utils/api";
 
 export const saveMoodEntry = async (moodEntry: Omit<MoodEntry, 'id'>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, "moods"), {
-      ...moodEntry,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Update user's progress metrics
-    await updateUserProgressMetrics(moodEntry.userId);
-    
-    return docRef.id;
+    const savedEntry = await moodAPI.create(moodEntry);
+    return savedEntry._id || savedEntry.id;
   } catch (error) {
     console.error("Error adding mood entry:", error);
     throw error;
@@ -22,8 +13,7 @@ export const saveMoodEntry = async (moodEntry: Omit<MoodEntry, 'id'>): Promise<s
 
 export const updateMoodEntry = async (id: string, moodEntry: Partial<MoodEntry>): Promise<void> => {
   try {
-    const moodRef = doc(db, "moods", id);
-    await updateDoc(moodRef, moodEntry);
+    await moodAPI.update(id, moodEntry);
   } catch (error) {
     console.error("Error updating mood entry:", error);
     throw error;
@@ -32,8 +22,7 @@ export const updateMoodEntry = async (id: string, moodEntry: Partial<MoodEntry>)
 
 export const deleteMoodEntry = async (id: string): Promise<void> => {
   try {
-    const moodRef = doc(db, "moods", id);
-    await deleteDoc(moodRef);
+    await moodAPI.delete(id);
   } catch (error) {
     console.error("Error deleting mood entry:", error);
     throw error;
@@ -42,24 +31,15 @@ export const deleteMoodEntry = async (id: string): Promise<void> => {
 
 export const getUserMoodEntries = async (userId: string): Promise<MoodEntry[]> => {
   try {
-    const moodsQuery = query(
-      collection(db, "moods"),
-      where("userId", "==", userId),
-      orderBy("date", "desc")
-    );
-    
-    const querySnapshot = await getDocs(moodsQuery);
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        userId: data.userId,
-        date: data.date,
-        mood: data.mood,
-        note: data.note,
-        timestamp: data.timestamp
-      } as MoodEntry;
-    }); 
+    const entries = await moodAPI.getAll();
+    return entries.map((entry: any) => ({
+      id: entry._id || entry.id,
+      userId: entry.userId,
+      date: entry.date,
+      mood: entry.mood,
+      note: entry.note,
+      timestamp: entry.timestamp
+    }));
   } catch (error) {
     console.error("Error getting mood entries:", error);
     throw error;
@@ -69,30 +49,15 @@ export const getUserMoodEntries = async (userId: string): Promise<MoodEntry[]> =
 // Get the last 7 days of mood entries for a user
 export const getUserRecentMoodEntries = async (userId: string, days = 7): Promise<MoodEntry[]> => {
   try {
-    // Calculate date from 7 days ago
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - days);
-    const startDate = sevenDaysAgo.toISOString().split('T')[0];
-    
-    const moodsQuery = query(
-      collection(db, "moods"),
-      where("userId", "==", userId),
-      where("date", ">=", startDate),
-      orderBy("date", "asc")
-    );
-    
-    const querySnapshot = await getDocs(moodsQuery);
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        userId: data.userId,
-        date: data.date,
-        mood: data.mood,
-        note: data.note,
-        timestamp: data.timestamp
-      } as MoodEntry;
-    });
+    const entries = await moodAPI.getRecent(days);
+    return entries.map((entry: any) => ({
+      id: entry._id || entry.id,
+      userId: entry.userId,
+      date: entry.date,
+      mood: entry.mood,
+      note: entry.note,
+      timestamp: entry.timestamp
+    }));
   } catch (error) {
     console.error("Error getting recent mood entries:", error);
     throw error;
@@ -102,16 +67,8 @@ export const getUserRecentMoodEntries = async (userId: string, days = 7): Promis
 // Check if a user has recorded a mood today
 export const hasRecordedMoodToday = async (userId: string): Promise<boolean> => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const moodsQuery = query(
-      collection(db, "moods"),
-      where("userId", "==", userId),
-      where("date", "==", today)
-    );
-    
-    const querySnapshot = await getDocs(moodsQuery);
-    return !querySnapshot.empty;
+    const result = await moodAPI.hasRecordedToday();
+    return result.hasRecorded;
   } catch (error) {
     console.error("Error checking today's mood entry:", error);
     return false;
@@ -121,77 +78,7 @@ export const hasRecordedMoodToday = async (userId: string): Promise<boolean> => 
 // Update user's progress metrics
 export const updateUserProgressMetrics = async (userId: string): Promise<void> => {
   try {
-    // Get user's document reference
-    const userRef = doc(db, "users", userId);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      console.error("User document not found");
-      return;
-    }
-    
-    // Get user's mood entries
-    const moodEntries = await getUserMoodEntries(userId);
-    
-    // Get user's goals
-    const goalsQuery = query(
-      collection(db, "goals"),
-      where("userId", "==", userId)
-    );
-    const goalsSnapshot = await getDocs(goalsQuery);
-    const goals = goalsSnapshot.docs.map(doc => doc.data());
-    const completedGoals = goals.filter(goal => goal.completed).length;
-    
-    // Calculate streak days
-    const sortedEntries = [...moodEntries].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    // Calculate streak (consecutive days with entries)
-    let streakDays = 0;
-    if (sortedEntries.length > 0) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      let currentDate = new Date(sortedEntries[0].date);
-      currentDate.setHours(0, 0, 0, 0);
-      
-      const isToday = currentDate.getTime() === today.getTime();
-      if (isToday) {
-        streakDays = 1;
-        
-        // Check for consecutive previous days
-        let previousDate = new Date(today);
-        
-        for (let i = 1; i < sortedEntries.length; i++) {
-          previousDate.setDate(previousDate.getDate() - 1);
-          const entryDate = new Date(sortedEntries[i].date);
-          entryDate.setHours(0, 0, 0, 0);
-          
-          if (entryDate.getTime() === previousDate.getTime()) {
-            streakDays++;
-          } else {
-            break;
-          }
-        }
-      }
-    }
-    
-    // Create progress metrics
-    const progressMetrics: ProgressMetrics = {
-      completedGoals,
-      totalGoals: goals.length,
-      streakDays,
-      lastActiveDate: new Date().toISOString()
-    };
-    
-    // Update user document
-    await updateDoc(userRef, {
-      lastActivity: new Date().toISOString(),
-      moodEntries: moodEntries.length,
-      progressMetrics
-    });
-    
+    await progressAPI.getMetrics();
   } catch (error) {
     console.error("Error updating user progress metrics:", error);
   }
@@ -214,15 +101,15 @@ export const saveLocalMoodEntry = (moodEntry: MoodEntry): void => {
   try {
     const storedMoods = localStorage.getItem('moodHistory');
     let allMoods: MoodEntry[] = [];
-    
+
     if (storedMoods) {
       allMoods = JSON.parse(storedMoods);
       // Remove any entries for this user on the same date
-      allMoods = allMoods.filter(entry => 
+      allMoods = allMoods.filter(entry =>
         !(entry.date === moodEntry.date && entry.userId === moodEntry.userId)
       );
     }
-    
+
     // Add the new entry
     allMoods.push(moodEntry);
     localStorage.setItem('moodHistory', JSON.stringify(allMoods));
@@ -231,38 +118,31 @@ export const saveLocalMoodEntry = (moodEntry: MoodEntry): void => {
   }
 };
 
-// Synchronize local entries with Firebase
+// Synchronize local entries with backend
 export const syncLocalEntriesWithFirebase = async (userId: string): Promise<void> => {
   try {
     const localEntries = getLocalMoodEntries().filter(entry => entry.userId === userId);
-    
+
     if (localEntries.length === 0) return;
-    
-    // For each local entry, check if it exists in Firestore
+
+    // For each local entry, try to save it to the backend
     for (const entry of localEntries) {
-      const moodsQuery = query(
-        collection(db, "moods"),
-        where("userId", "==", userId),
-        where("date", "==", entry.date)
-      );
-      
-      const querySnapshot = await getDocs(moodsQuery);
-      
-      // If entry doesn't exist in Firestore, add it
-      if (querySnapshot.empty) {
+      try {
         await saveMoodEntry({
           userId: entry.userId,
           date: entry.date,
           mood: entry.mood,
           note: entry.note
         });
+      } catch (error) {
+        console.error('Failed to sync mood entry:', error);
       }
     }
-    
-    // Update user's progress metrics after sync
-    await updateUserProgressMetrics(userId);
-    
+
+    // Clear local entries after successful sync
+    localStorage.removeItem('moodHistory');
+
   } catch (error) {
-    console.error("Error syncing local entries with Firebase:", error);
+    console.error("Error syncing local entries:", error);
   }
 };

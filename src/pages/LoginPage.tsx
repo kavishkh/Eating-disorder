@@ -23,7 +23,7 @@ const LoginPage = () => {
     setTimeout(() => {
       setAnimateForm(true);
     }, 100);
-    
+
     // If user is already logged in, redirect to dashboard
     if (currentUser) {
       console.log("User already logged in:", currentUser);
@@ -42,21 +42,21 @@ const LoginPage = () => {
         title: "Success",
         description: "You have been successfully logged in",
       });
-      
+
       console.log("Login successful, redirecting...");
-      
+
       // On regular login, always redirect to dashboard regardless of onboarding status
       // This ensures existing users never get sent to onboarding on login
       console.log("Navigating to dashboard after login");
       navigate("/dashboard", { replace: true });
-      
+
     } catch (err: any) {
       // The error from the context is already set by login()
       console.error("Login error in component:", err);
-      
+
       // Display more specific error messages based on Firebase error codes
       let errorMessage = "Failed to log in. Please check your credentials.";
-      
+
       if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
         errorMessage = "Invalid email or password. Please try again.";
       } else if (err.code === "auth/too-many-requests") {
@@ -68,7 +68,7 @@ const LoginPage = () => {
       } else if (err.code === "auth/configuration-not-found") {
         errorMessage = "Authentication service is temporarily unavailable. Please try again later.";
       }
-      
+
       toast({
         title: "Error",
         description: errorMessage,
@@ -82,34 +82,29 @@ const LoginPage = () => {
     try {
       setIsSubmitting(true);
       const user = await loginWithGoogle();
-      
-      toast({
-        title: "Success",
-        description: "You have been successfully logged in with Google",
-      });
-      
-      console.log("Google login successful, redirecting...");
-      
-      // For Google login, always direct to dashboard after successful login
-      // This ensures existing users never get sent to onboarding on login
-      console.log("Navigating to dashboard after Google login");
-      navigate("/dashboard", { replace: true });
-      
+
+      if (user) {
+        toast({
+          title: "Success",
+          description: "You have been successfully logged in with Google",
+        });
+
+        console.log("Google login successful, redirecting...");
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err: any) {
-      console.error("Google login error in component:", err);
-      
-      // Get a user-friendly error message
-      const errorMessage = err.message || "Failed to log in with Google. Please try again.";
-      
+      console.error("Google login error:", err);
+
       toast({
         title: "Login Error",
-        description: errorMessage,
+        description: err.message || "Failed to log in with Google. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="app-container flex min-h-screen flex-col items-center justify-center p-4">
@@ -131,7 +126,7 @@ const LoginPage = () => {
                   <span>An unexpected error occurred. Please try again later.</span>
                 </div>
               )}
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -162,9 +157,9 @@ const LoginPage = () => {
               </div>
             </CardContent>
             <CardFooter className="flex-col space-y-4">
-              <Button 
-                type="submit" 
-                className="w-full bg-healing-600 hover:bg-healing-700 transition-all duration-300 transform hover:scale-105" 
+              <Button
+                type="submit"
+                className="w-full bg-healing-600 hover:bg-healing-700 transition-all duration-300 transform hover:scale-105"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -179,14 +174,14 @@ const LoginPage = () => {
                   </div>
                 )}
               </Button>
-              
+
               <div className="relative flex items-center py-2">
                 <Separator className="flex-1" />
                 <span className="mx-2 text-xs text-gray-500">OR</span>
                 <Separator className="flex-1" />
               </div>
-              
-              <Button 
+
+              <Button
                 type="button"
                 variant="outline"
                 className="w-full flex items-center justify-center border-gray-300 hover:bg-gray-50"
@@ -214,7 +209,7 @@ const LoginPage = () => {
                 </svg>
                 Continue with Google
               </Button>
-              
+
               <p className="text-center text-sm text-gray-600">
                 Don't have an account?{" "}
                 <Link to="/register" className="font-medium text-healing-600 hover:text-healing-800">

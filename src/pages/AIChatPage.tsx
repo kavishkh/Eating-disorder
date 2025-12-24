@@ -3,19 +3,19 @@ import { useAuth } from "../context/AuthContext";
 import AppLayout from "../components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Send, 
-  Bot, 
-  User, 
+import {
+  Send,
+  Bot,
+  User,
   MoveDown,
   RefreshCw,
   CloudOff,
@@ -48,10 +48,10 @@ const ApiErrorDebug = ({ error, onClose }) => {
           <div className="font-semibold text-red-600 mb-1">
             {error.name || "Error"}: {error.message || "Unknown error"}
           </div>
-          
+
           {!expanded ? (
-            <Button 
-              variant="link" 
+            <Button
+              variant="link"
               className="p-0 h-auto text-xs text-blue-600"
               onClick={() => setExpanded(true)}
             >
@@ -65,7 +65,7 @@ const ApiErrorDebug = ({ error, onClose }) => {
                   {error.stack || "No stack trace available"}
                 </pre>
               </div>
-              
+
               {error.response && (
                 <div>
                   <div className="font-medium mb-1">Response:</div>
@@ -74,9 +74,9 @@ const ApiErrorDebug = ({ error, onClose }) => {
                   </pre>
                 </div>
               )}
-              
-              <Button 
-                variant="link" 
+
+              <Button
+                variant="link"
                 className="p-0 h-auto text-xs text-blue-600"
                 onClick={() => setExpanded(false)}
               >
@@ -97,11 +97,18 @@ const ApiErrorDebug = ({ error, onClose }) => {
 
 const AIChatPage = () => {
   const { currentUser } = useAuth();
+
+  // Chat session management
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    return `session-${Date.now()}`;
+  });
+  const [chatSessions, setChatSessions] = useState<{ [key: string]: ChatMessage[] }>({});
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-message",
       sender: "ai",
-      content: `Hi ${currentUser?.name || "there"}! I'm your Recovery Companion, here to support you on your journey. How are you feeling today?`,
+      content: `Hey ${currentUser?.name || "friend"}! 😊\n\nI'm so glad you're here. I know recovery can feel really lonely sometimes, but you're not alone - I'm here for you whenever you need to talk.\n\nWhether you're having a tough day, need help figuring something out, or just want someone to listen - I'm here. No judgment, just support.\n\nSo... how are you doing today? What's on your mind? 💙`,
       timestamp: new Date()
     }
   ]);
@@ -113,7 +120,8 @@ const AIChatPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
   const [retryingConnection, setRetryingConnection] = useState(false);
-  
+  const [showChatHistory, setShowChatHistory] = useState(false);
+
   // Add these new state variables for error debugging
   const [apiError, setApiError] = useState(null);
   const [debugMode, setDebugMode] = useState(false);
@@ -121,20 +129,20 @@ const AIChatPage = () => {
   // Load chat history when component mounts
   useEffect(() => {
     const loadChatHistory = async () => {
-      if (currentUser?.uid) {
+      if (currentUser?.id) {
         try {
           setIsLoading(true);
           setConnectionError(false);
-          
+
           // Check internet connection first
           if (!navigator.onLine) {
             setConnectionError(true);
             setIsLoading(false);
             return;
           }
-          
-          const history = await getUserChatHistory(currentUser.uid);
-          
+
+          const history = await getUserChatHistory(currentUser.id);
+
           if (history.length > 0) {
             setMessages(history);
           }
@@ -154,9 +162,9 @@ const AIChatPage = () => {
         setIsLoading(false);
       }
     };
-    
+
     loadChatHistory();
-    
+
     // Set up online/offline event listeners
     const handleOnline = () => {
       setConnectionError(false);
@@ -166,7 +174,7 @@ const AIChatPage = () => {
         variant: "default"
       });
     };
-    
+
     const handleOffline = () => {
       setConnectionError(true);
       toast({
@@ -175,10 +183,10 @@ const AIChatPage = () => {
         variant: "destructive"
       });
     };
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -197,7 +205,7 @@ const AIChatPage = () => {
         e.preventDefault();
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [debugMode, toast]);
@@ -218,17 +226,71 @@ const AIChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Handle starting a new chat
+  const handleNewChat = () => {
+    // Save current chat to sessions with timestamp
+    if (messages.length > 1) { // More than just welcome message
+      const sessionDate = new Date().toISOString();
+      setChatSessions(prev => ({
+        ...prev,
+        [currentSessionId]: messages
+      }));
+
+      // Save to localStorage for persistence
+      const savedSessions = JSON.parse(localStorage.getItem('chatSessions') || '{}');
+      savedSessions[currentSessionId] = {
+        messages,
+        date: sessionDate
+      };
+      localStorage.setItem('chatSessions', JSON.stringify(savedSessions));
+    }
+
+    // Create new session
+    const newSessionId = `session-${Date.now()}`;
+    setCurrentSessionId(newSessionId);
+
+    // Reset messages to welcome message
+    setMessages([
+      {
+        id: "welcome-message",
+        sender: "ai",
+        content: `Hey ${currentUser?.name || "friend"}! 😊\n\nI'm so glad you're here. I know recovery can feel really lonely sometimes, but you're not alone - I'm here for you whenever you need to talk.\n\nWhether you're having a tough day, need help figuring something out, or just want someone to listen - I'm here. No judgment, just support.\n\nSo... how are you doing today? What's on your mind? 💙`,
+        timestamp: new Date()
+      }
+    ]);
+
+    toast({
+      title: "New chat started",
+      description: "Your previous conversation has been saved",
+    });
+  };
+
+  // Load a previous chat session
+  const loadChatSession = (sessionId: string) => {
+    const savedSessions = JSON.parse(localStorage.getItem('chatSessions') || '{}');
+    if (savedSessions[sessionId]) {
+      setMessages(savedSessions[sessionId].messages);
+      setCurrentSessionId(sessionId);
+      setShowChatHistory(false);
+
+      toast({
+        title: "Chat loaded",
+        description: "Previous conversation restored",
+      });
+    }
+  };
+
   const handleRetryConnection = async () => {
     setRetryingConnection(true);
-    
+
     // Simulate checking connection
     setTimeout(async () => {
       if (navigator.onLine) {
         setConnectionError(false);
         // Reload chat history if we're back online
-        if (currentUser?.uid) {
+        if (currentUser?.id) {
           try {
-            const history = await getUserChatHistory(currentUser.uid);
+            const history = await getUserChatHistory(currentUser.id);
             if (history.length > 0) {
               setMessages(history);
             }
@@ -256,9 +318,9 @@ const AIChatPage = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!inputMessage.trim()) return;
-    
+
     // Check connection first
     if (!navigator.onLine || connectionError) {
       toast({
@@ -279,37 +341,37 @@ const AIChatPage = () => {
       content: inputMessage,
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInputMessage("");
     setIsTyping(true);
 
     try {
       // Save user message to database if user is logged in
-      if (currentUser?.uid) {
-        await saveChatMessage(currentUser.uid, userMessage);
+      if (currentUser?.id) {
+        await saveChatMessage(currentUser.id, userMessage);
       }
-      
+
       // Get all previous messages for context
       const conversationHistory = [...messages];
-      
+
       // Get AI response from ChatGPT API
       const responseText = await getChatGPTResponse(userMessage.content, conversationHistory);
-      
+
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: "ai",
         content: responseText,
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
-      
+
       // Save AI response to database if user is logged in
-      if (currentUser?.uid) {
-        await saveChatMessage(currentUser.uid, aiMessage);
+      if (currentUser?.id) {
+        await saveChatMessage(currentUser.id, aiMessage);
       }
-      
+
       setIsTyping(false);
     } catch (error) {
       // Enhanced error logging
@@ -319,18 +381,18 @@ const AIChatPage = () => {
         stack: error.stack,
         response: error.response
       });
-      
+
       // Store the detailed error for inspection
       setApiError(error);
       setConnectionError(true);
-      
+
       // Show error message
       toast({
         title: "API Error",
         description: "Something went wrong with the AI service. Press Ctrl+Shift+D to view details.",
         variant: "destructive"
       });
-      
+
       setIsTyping(false);
     }
   };
@@ -338,16 +400,23 @@ const AIChatPage = () => {
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)]">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold tracking-tight text-healing-900">AI Support Chat</h2>
-          <p className="text-muted-foreground">
-            Chat with your Recovery Companion for support, guidance, and encouragement
-          </p>
-          {debugMode && (
-            <div className="mt-2 text-xs bg-amber-50 p-2 rounded-md border border-amber-200 text-amber-800">
-              Debug Mode Active - Press Ctrl+Shift+D to disable
-            </div>
-          )}
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-healing-900">Talk to Your Recovery Friend</h2>
+            <p className="text-muted-foreground">
+              A caring friend who's here to listen, support you, and help you through tough moments
+            </p>
+          </div>
+          <Button
+            onClick={handleNewChat}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New Chat
+          </Button>
         </div>
 
         <Card className="flex-1 flex flex-col border-healing-200 overflow-hidden">
@@ -408,23 +477,21 @@ const AIChatPage = () => {
               )}
             </CardContent>
           ) : (
-            <CardContent 
-              className="flex-1 overflow-y-auto p-4 space-y-4" 
+            <CardContent
+              className="flex-1 overflow-y-auto p-4 space-y-4"
               onScroll={handleScroll}
             >
               {messages.map((msg) => (
-                <div 
+                <div
                   key={msg.id}
                   className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div 
-                    className={`flex items-start gap-2 max-w-[80%] ${
-                      msg.sender === "user" ? "flex-row-reverse" : ""
-                    }`}
+                  <div
+                    className={`flex items-start gap-2 max-w-[80%] ${msg.sender === "user" ? "flex-row-reverse" : ""
+                      }`}
                   >
-                    <Avatar className={`h-8 w-8 mt-0.5 ${
-                      msg.sender === "ai" ? "bg-healing-100" : "bg-accent"
-                    }`}>
+                    <Avatar className={`h-8 w-8 mt-0.5 ${msg.sender === "ai" ? "bg-healing-100" : "bg-accent"
+                      }`}>
                       {msg.sender === "ai" ? (
                         <>
                           <AvatarImage src="/bot-avatar.png" />
@@ -434,20 +501,19 @@ const AIChatPage = () => {
                         </>
                       ) : (
                         <>
-                          <AvatarImage src={currentUser?.photoURL || ""} />
+                          <AvatarImage src="" />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             <User size={16} />
                           </AvatarFallback>
                         </>
                       )}
                     </Avatar>
-                    
-                    <div 
-                      className={`rounded-lg px-4 py-2 ${
-                        msg.sender === "user" 
-                          ? "bg-primary text-primary-foreground" 
-                          : "bg-muted"
-                      }`}
+
+                    <div
+                      className={`rounded-lg px-4 py-2 ${msg.sender === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                        }`}
                     >
                       <div className="text-sm break-words whitespace-pre-wrap">{msg.content}</div>
                       <div className="text-[10px] opacity-70 mt-1">
@@ -467,7 +533,7 @@ const AIChatPage = () => {
                         <Bot size={16} />
                       </AvatarFallback>
                     </Avatar>
-                    
+
                     <div className="rounded-lg px-4 py-2 bg-muted">
                       <div className="flex space-x-1">
                         <div className="h-2 w-2 rounded-full bg-healing-400 animate-bounce" />
@@ -478,7 +544,7 @@ const AIChatPage = () => {
                   </div>
                 </div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </CardContent>
           )}
@@ -492,8 +558,8 @@ const AIChatPage = () => {
                 placeholder={connectionError ? "Connection problem..." : "Type your message..."}
                 className="flex-1"
               />
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={!inputMessage.trim() || isTyping || isLoading || connectionError}
                 className="bg-healing-500 hover:bg-healing-600"
               >
@@ -517,11 +583,10 @@ const AIChatPage = () => {
         </Card>
       </div>
 
-      {/* Add the detailed debug panel at the end */}
       {debugMode && apiError && (
-        <ApiErrorDebug 
-          error={apiError} 
-          onClose={() => setApiError(null)} 
+        <ApiErrorDebug
+          error={apiError}
+          onClose={() => setApiError(null)}
         />
       )}
     </AppLayout>

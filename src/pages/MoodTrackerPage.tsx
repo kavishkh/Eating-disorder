@@ -23,6 +23,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { MoodEntry } from "@/types/types";
+import { saveMoodEntry, getUserMoodEntries } from "@/services/moodService";
 
 // Mood definitions
 const moodDefinitions = [
@@ -41,26 +42,27 @@ const MoodTrackerPage = () => {
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
-  // Load mood history from local storage on mount
+  // Load mood history from MongoDB on mount
   useEffect(() => {
-    const storedMoods = localStorage.getItem('moodHistory');
-    if (storedMoods) {
+    const fetchMoodHistory = async () => {
+      if (!currentUser?.id) {
+        setMoodHistory([]);
+        return;
+      }
+
       try {
-        const parsedMoods = JSON.parse(storedMoods);
-        // Filter moods for current user if logged in
-        const userMoods = currentUser?.id 
-          ? parsedMoods.filter((mood: MoodEntry) => mood.userId === currentUser.id)
-          : parsedMoods;
-        setMoodHistory(userMoods);
+        const moods = await getUserMoodEntries(currentUser.id);
+        setMoodHistory(moods);
       } catch (error) {
-        console.error("Failed to parse mood history from localStorage:", error);
-        // If parsing fails, start with empty array
+        console.error("Failed to fetch mood history:", error);
         setMoodHistory([]);
       }
-    }
+    };
+
+    fetchMoodHistory();
   }, [currentUser]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedMood === null) {
       toast({
         title: "Please select a mood",
@@ -70,67 +72,49 @@ const MoodTrackerPage = () => {
       return;
     }
 
+    if (!currentUser?.id) {
+      toast({
+        title: "Not logged in",
+        description: "Please log in to save your mood",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     const today = new Date().toISOString().split("T")[0];
-    
-    // Check if we already have an entry for today
-    const existingEntryIndex = moodHistory.findIndex(entry => 
-      entry.date === today && entry.userId === (currentUser?.id || 'anonymous')
-    );
 
-    // Add new mood entry to history
-    const newEntry: MoodEntry = {
-      date: today,
-      mood: selectedMood,
-      note: note,
-      userId: currentUser?.id || 'anonymous',
-    };
+    try {
+      // Save mood entry to MongoDB
+      await saveMoodEntry({
+        date: today,
+        mood: selectedMood,
+        note: note,
+        userId: currentUser.id,
+      });
 
-    let updatedHistory: MoodEntry[];
-    
-    if (existingEntryIndex >= 0) {
-      // Update existing entry
-      updatedHistory = [...moodHistory];
-      updatedHistory[existingEntryIndex] = newEntry;
-    } else {
-      // Add new entry
-      updatedHistory = [newEntry, ...moodHistory];
-    }
+      // Refresh mood history
+      const updatedMoods = await getUserMoodEntries(currentUser.id);
+      setMoodHistory(updatedMoods);
 
-    // Simulate API call with setTimeout
-    setTimeout(() => {
-      setMoodHistory(updatedHistory);
-      
-      // Store all moods in localStorage
-      const allStoredMoods = localStorage.getItem('moodHistory');
-      let allMoods: MoodEntry[] = [];
-      
-      try {
-        if (allStoredMoods) {
-          allMoods = JSON.parse(allStoredMoods);
-          // Remove any entries for this user on the same date
-          allMoods = allMoods.filter(entry => 
-            !(entry.date === today && entry.userId === (currentUser?.id || 'anonymous'))
-          );
-        }
-      } catch (error) {
-        console.error("Error parsing stored moods:", error);
-      }
-      
-      // Add the new entry
-      allMoods.push(newEntry);
-      localStorage.setItem('moodHistory', JSON.stringify(allMoods));
-      
       setSelectedMood(null);
       setNote("");
-      setIsSubmitting(false);
-      
+
       toast({
         title: "Mood logged successfully",
         description: "Your mood has been recorded for today",
       });
-    }, 1000);
+    } catch (error) {
+      console.error("Error saving mood:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save mood entry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Get mood details based on value
@@ -146,7 +130,7 @@ const MoodTrackerPage = () => {
       date.setDate(date.getDate() - i);
       return date.toISOString().split('T')[0];
     }).reverse();
-    
+
     // Map the dates to mood entries or use a default value
     return last7Days.map(date => {
       const entry = moodHistory.find(entry => entry.date === date);
@@ -160,11 +144,11 @@ const MoodTrackerPage = () => {
   // Calculate height percentage based on mood value with improved scaling
   const getMoodHeight = (moodValue: number) => {
     if (moodValue === 0) return '0%'; // No height for no entry
-    
+
     // Scale moods from 1-5 to appropriate percentages that won't overlap with headers
     const maxBarHeight = 70; // Maximum percentage height for a bar
     const scale = maxBarHeight / 5; // Scale factor
-    
+
     return `${moodValue * scale}%`;
   };
 
@@ -202,11 +186,10 @@ const MoodTrackerPage = () => {
                     <Button
                       key={mood.value}
                       variant="outline"
-                      className={`flex flex-col h-auto py-3 border-healing-200 ${
-                        selectedMood === mood.value
+                      className={`flex flex-col h-auto py-3 border-healing-200 ${selectedMood === mood.value
                           ? "border-healing-500 bg-healing-50 ring-1 ring-healing-500"
                           : ""
-                      }`}
+                        }`}
                       onClick={() => setSelectedMood(mood.value)}
                     >
                       <MoodIcon className={`h-6 w-6 mb-1 ${mood.color}`} />
@@ -263,25 +246,24 @@ const MoodTrackerPage = () => {
             <CardContent className="pt-4">
               <div className="h-[200px] relative" style={{ marginTop: '10px' }}>
                 {/* Baseline (neutral line) */}
-                <div 
-                  className="absolute w-full h-px bg-gray-300" 
+                <div
+                  className="absolute w-full h-px bg-gray-300"
                   style={{ top: getBaselinePosition() }}
                 ></div>
-                
+
                 <div className="flex h-full w-full items-end justify-between">
                   {chartData.map((entry, i) => {
                     // Only show bars for entries with moods
                     const moodDetail = entry.mood ? getMoodDetails(entry.mood) : null;
                     const dayName = new Date(entry.date).toLocaleDateString("en-US", { weekday: "short" });
-                    
+
                     return (
                       <div key={i} className="flex flex-col items-center relative h-full">
                         {entry.mood > 0 && (
                           <div
-                            className={`w-8 rounded-sm transition-all hover:opacity-80 ${
-                              moodDetail ? moodDetail.bg : "bg-gray-100"
-                            }`}
-                            style={{ 
+                            className={`w-8 rounded-sm transition-all hover:opacity-80 ${moodDetail ? moodDetail.bg : "bg-gray-100"
+                              }`}
+                            style={{
                               height: getMoodHeight(entry.mood),
                               position: 'absolute',
                               bottom: entry.mood <= 3 ? 'auto' : getBaselinePosition(),
@@ -330,10 +312,10 @@ const MoodTrackerPage = () => {
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-medium">{moodDetail.label}</h4>
                           <span className="text-xs text-gray-500">
-                            {new Date(entry.date).toLocaleDateString("en-US", { 
-                              year: "numeric", 
-                              month: "short", 
-                              day: "numeric" 
+                            {new Date(entry.date).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric"
                             })}
                           </span>
                         </div>
