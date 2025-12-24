@@ -25,9 +25,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// Firestore imports
-import { db } from "../utils/firebase";
-import { getDoc, doc, updateDoc, setDoc } from "firebase/firestore";
+// Firestore imports removed
 
 const quotes = [
   "Recovery is not a race; it's a journey that we take one day at a time.",
@@ -61,7 +59,8 @@ const Dashboard = () => {
     const fetchUserData = async () => {
       const today = new Date().toISOString().split('T')[0];
 
-      // Load mood from localStorage or Firestore
+      // Load mood from localStorage (or ideally backend API via moodService)
+      // For now, keeping localStorage check for compatibility or offline fallback
       const storedMoods = localStorage.getItem('moodHistory');
       if (storedMoods) {
         try {
@@ -99,54 +98,52 @@ const Dashboard = () => {
       if (!currentUser?.id) return;
 
       const today = new Date().toISOString().split('T')[0];
-      const userRef = doc(db, "users", currentUser.id);
+      // Check last active date from currentUser
+      const lastActive = currentUser.progressMetrics?.lastActiveDate?.split('T')[0];
 
-      try {
-        const userSnap = await getDoc(userRef);
-        const data = userSnap.data();
-        const lastActive = data?.progressMetrics?.lastActiveDate?.split('T')[0];
+      if (lastActive !== today) {
+        const currentStreak = currentUser.progressMetrics?.streakDays || 0;
+        const newStreak = currentStreak + 1;
 
-        if (lastActive !== today) {
-          const newStreak = (data?.progressMetrics?.streakDays || 0) + 1;
+        console.log("Updating streak:", { old: currentStreak, new: newStreak });
 
-          await updateDoc(userRef, {
-            "progressMetrics.streakDays": newStreak,
-            "progressMetrics.lastActiveDate": today
+        try {
+          await updateUserProfile({
+            progressMetrics: {
+              ...currentUser.progressMetrics,
+              streakDays: newStreak,
+              lastActiveDate: today
+            }
           });
 
           toast({
             title: "Progress Updated",
             description: "Your daily streak has been updated!",
           });
+        } catch (err) {
+          console.error("Error updating streak:", err);
         }
-      } catch (err) {
-        console.error("Error updating streak:", err);
       }
     };
 
     updateDailyProgress();
-  }, [currentUser]);
+  }, [currentUser, updateUserProfile, toast]);
 
   const handleSaveGoals = async (goals: string[]) => {
     console.log("Saving goals from dialog:", goals); // Debug log
-    
+
     // Update local state first for immediate UI feedback
     setUserGoals([...goals]);
-    
+
     // Make sure we're saving an array to localStorage
     localStorage.setItem('userGoals', JSON.stringify(goals));
 
     if (currentUser?.id) {
       try {
-        const userRef = doc(db, "users", currentUser.id);
-        await updateDoc(userRef, {
-          goals: goals, // Ensure we're passing the array directly
-          "progressMetrics.totalGoals": goals.length,
-        });
-
         // Update the AuthContext to reflect the new goals
+        // This will call the backend API
         await updateUserProfile({
-          goals: goals, // Ensure we're passing the array directly
+          goals: goals,
           progressMetrics: {
             ...currentUser.progressMetrics,
             totalGoals: goals.length,

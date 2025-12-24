@@ -23,7 +23,8 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://kavishkhanna06_db_user:Eatingdisorder12@cluster0.mhogpcx.mongodb.net/eating-disorder?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Kavishkhanna:kavishkhanna12@cluster0.mhogpcx.mongodb.net/eating-disorder?retryWrites=true&w=majority';
+console.log('Attempting to connect with URI:', MONGODB_URI.replace(/:([^:@]+)@/, ':****@'));
 
 mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 5000,

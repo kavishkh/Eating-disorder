@@ -1,6 +1,5 @@
 
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from "./firebase";
+import { chatAPI } from "./api";
 
 interface ClaudeMessage {
   role: "user" | "assistant";
@@ -40,7 +39,7 @@ export const sendMessageToClaude = async (
   userId?: string
 ): Promise<string> => {
   const apiKey = getApiKey();
-  
+
   if (!apiKey) {
     throw new Error("Claude API key not found");
   }
@@ -75,22 +74,25 @@ export const sendMessageToClaude = async (
 
     const data = await response.json();
     const responseText = data.content[0].text;
-    
-    // Store the conversation in Firebase if userId is provided
+
+    // Store the conversation if userId is provided using our new backend API
     if (userId) {
-      // Store the last user message and AI response as a conversation entry
+      // Store the last user message
       const lastUserMessage = messages.filter(msg => msg.sender === "user").pop();
-      
+
       if (lastUserMessage) {
-        await addDoc(collection(db, "conversations"), {
-          userId,
-          userMessage: lastUserMessage.content,
-          aiResponse: responseText,
-          timestamp: serverTimestamp()
-        });
+        try {
+          // Save user message
+          await chatAPI.saveMessage(lastUserMessage.content, true);
+          // Save AI response
+          await chatAPI.saveMessage(responseText, false);
+        } catch (err) {
+          console.error("Failed to save chat history to backend:", err);
+          // We don't fail the whole request if saving history fails
+        }
       }
     }
-    
+
     return responseText;
   } catch (error) {
     console.error("Error calling Claude API:", error);
