@@ -92,9 +92,12 @@ router.post('/login', async (req, res) => {
             },
             token
         });
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: 'Failed to login' });
+    } catch (err) {
+        console.error("LOGIN ERROR 👉", err);
+        res.status(500).json({
+            message: err.message,
+            stack: err.stack
+        });
     }
 });
 

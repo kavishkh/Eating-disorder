@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check for existing auth token on mount
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('token');
 
       if (!token) {
         setLoading(false);
@@ -77,21 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Cache user data
         localStorage.setItem('cachedUser', JSON.stringify(user));
         localStorage.setItem('userOnboardingComplete', user.onboardingCompleted ? 'true' : 'false');
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to get current user:', err);
-
-        // Try to use cached user data if offline
-        const cachedUser = localStorage.getItem('cachedUser');
-        if (cachedUser && !isOnline) {
-          try {
-            setCurrentUser(JSON.parse(cachedUser));
-          } catch (e) {
-            console.error('Failed to parse cached user:', e);
-            removeAuthToken();
-          }
-        } else {
-          removeAuthToken();
-        }
+        localStorage.removeItem('token');
       } finally {
         setLoading(false);
       }
@@ -111,8 +99,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log("Attempting login for:", email);
-      const user = await authAPI.login(email, password);
+      const res = await authAPI.login(email, password);
 
+      localStorage.setItem("token", res.token);
+      const user = res.user;
       setCurrentUser(user);
 
       // Cache user data

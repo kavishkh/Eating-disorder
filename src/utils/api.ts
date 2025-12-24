@@ -3,17 +3,17 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
-    return localStorage.getItem('authToken');
+    return localStorage.getItem('token');
 };
 
 // Set auth token in localStorage
 export const setAuthToken = (token: string): void => {
-    localStorage.setItem('authToken', token);
+    localStorage.setItem('token', token);
 };
 
 // Remove auth token from localStorage
 export const removeAuthToken = (): void => {
-    localStorage.removeItem('authToken');
+    localStorage.removeItem('token');
 };
 
 // API request wrapper with authentication
@@ -63,7 +63,7 @@ export const authAPI = {
         if (data.token) {
             setAuthToken(data.token);
         }
-        return data.user;
+        return data;
     },
 
     getCurrentUser: async () => {
