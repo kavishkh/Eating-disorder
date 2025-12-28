@@ -128,14 +128,33 @@ export const authAPI = {
     },
 
     login: async (email: string, password: string) => {
-        console.log('Logging in user with:', { email, password: '***' });
+        console.log('🔐 Logging in user with:', { email, password: '***' });
         const data = await apiRequest('/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
         });
+
+        console.log('🔐 Login response received:', {
+            hasToken: !!data.token,
+            hasUser: !!data.user,
+            tokenPreview: data.token ? data.token.substring(0, 30) + '...' : 'NO TOKEN'
+        });
+
         if (data.token) {
+            console.log('🔐 Saving token to localStorage...');
             setAuthToken(data.token);
+
+            // Verify token was saved
+            const savedToken = localStorage.getItem('token');
+            console.log('🔐 Token saved verification:', {
+                saved: !!savedToken,
+                matches: savedToken === data.token,
+                preview: savedToken ? savedToken.substring(0, 30) + '...' : 'NOT FOUND'
+            });
+        } else {
+            console.error('❌ No token in login response!', data);
         }
+
         return data;
     },
 

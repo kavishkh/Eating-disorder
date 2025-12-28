@@ -2,18 +2,29 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from server directory
-dotenv.config({ path: path.join(__dirname, '.env') });
+const envPath = path.join(__dirname, '.env');
+console.log(`🔍 Checking for .env at: ${envPath}`);
+
+if (fs.existsSync(envPath)) {
+    const result = dotenv.config({ path: envPath });
+    if (result.error) {
+        console.error('❌ Error parsing .env file:', result.error);
+    } else {
+        console.log('✅ .env file found and parsed');
+    }
+} else {
+    console.error('❌ .env file NOT FOUND at the expected path!');
+}
 
 // Verify JWT_SECRET is loaded
 console.log('====== ENVIRONMENT CHECK ======');
 console.log('JWT_SECRET =', process.env.JWT_SECRET ? '✅ LOADED' : '❌ UNDEFINED');
 console.log('MONGODB_URI =', process.env.MONGODB_URI ? '✅ LOADED' : '❌ UNDEFINED (using fallback)');
-console.log('PORT =', process.env.PORT || '5000 (default)');
 console.log('================================');
 
 import express from 'express';

@@ -46,7 +46,7 @@ export const register = async (req, res) => {
 
         // Generate JWT token using the guaranteed secret
         const token = jwt.sign(
-            { id: user._id },
+            { userId: user._id },
             JWT_SECRET,
             { expiresIn: "7d" }
         );
@@ -99,7 +99,7 @@ export const login = async (req, res) => {
 
         // Generate JWT token using the guaranteed secret
         const token = jwt.sign(
-            { id: user._id },
+            { userId: user._id },
             JWT_SECRET,
             { expiresIn: "7d" }
         );
