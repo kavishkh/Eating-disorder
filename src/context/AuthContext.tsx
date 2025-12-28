@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { User as AppUser } from "@/types/types";
 import { useToast } from "@/hooks/use-toast";
-import { authAPI, removeAuthToken } from "@/utils/api";
+import { authAPI, removeAuthToken, onAuthExpired } from "@/utils/api";
+import { isTokenExpired, debugToken, getToken } from "@/utils/tokenHelper";
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -30,6 +32,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<Error | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
+
+  // Handle auth expiration - called when 401 errors occur or token expires
+  const handleAuthExpired = useCallback(() => {
+    console.log("🔒 Auth expired, clearing user state and redirecting...");
+
+    setCurrentUser(null);
+    setError(null);
+
+    // Show toast notification
+    toast({
+      title: "Session Expired",
+      description: "Your session has expired. Please log in again.",
+      variant: "destructive"
+    });
+
+    // Redirect to login page
+    window.location.href = '/login';
+  }, [toast]);
+
+  // Register the auth expired callback with the API module
+  useEffect(() => {
+    onAuthExpired(handleAuthExpired);
+  }, [handleAuthExpired]);
 
   // Monitor network status
   useEffect(() => {
@@ -62,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check for existing auth token on mount
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       if (!token) {
         console.log("No token found, user not logged in");
@@ -70,8 +95,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      // Debug: Log token info on startup
+      console.log("🔐 Token found, validating...");
+      debugToken();
+
+      // Pre-check: Is the token already expired?
+      if (isTokenExpired(token)) {
+        console.warn("🔒 Token is expired, clearing auth state");
+        localStorage.removeItem('token');
+        localStorage.removeItem('cachedUser');
+        setLoading(false);
+
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       try {
-        console.log("Found token, fetching current user...");
+        console.log("Found valid token, fetching current user...");
         const user = await authAPI.getCurrentUser();
         console.log("Current user fetched:", user);
         setCurrentUser(user);
@@ -89,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
-  }, []);
+  }, [toast]);
 
   // Login
   const login = async (email: string, password: string) => {

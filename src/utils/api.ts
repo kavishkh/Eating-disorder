@@ -1,51 +1,116 @@
+import { getToken, setToken, removeToken, isTokenExpired, debugToken, formatTokenExpiry } from './tokenHelper';
+
 // Use localhost:5000 for development, can be overridden with VITE_API_URL env var
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Get auth token from localStorage
+// Event for handling auth expiry across the app
+type AuthExpiredCallback = () => void;
+let authExpiredCallback: AuthExpiredCallback | null = null;
+
+// Register a callback to be called when authentication expires
+export const onAuthExpired = (callback: AuthExpiredCallback): void => {
+    authExpiredCallback = callback;
+};
+
+// Get auth token from localStorage (using tokenHelper)
 const getAuthToken = (): string | null => {
-    return localStorage.getItem('token');
+    return getToken();
 };
 
 // Set auth token in localStorage
 export const setAuthToken = (token: string): void => {
-    localStorage.setItem('token', token);
+    setToken(token);
 };
 
 // Remove auth token from localStorage
 export const removeAuthToken = (): void => {
-    localStorage.removeItem('token');
+    removeToken();
+};
+
+// Handle authentication expired (401 errors or expired tokens)
+const handleAuthExpired = (reason: string): void => {
+    console.warn(`🔒 Authentication expired: ${reason}`);
+
+    // Clear all auth data
+    removeToken();
+    localStorage.removeItem('cachedUser');
+    localStorage.removeItem('userOnboardingComplete');
+
+    // Trigger the callback if registered
+    if (authExpiredCallback) {
+        authExpiredCallback();
+    }
 };
 
 // API request wrapper with authentication
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     const token = getAuthToken();
 
+    // Pre-flight check: Verify token exists and is not expired
+    if (token) {
+        if (isTokenExpired(token)) {
+            console.warn('🔒 Token is expired, clearing auth state');
+            handleAuthExpired('Token expired');
+            throw new Error('Your session has expired. Please log in again.');
+        }
+
+        // Debug: Log token info for troubleshooting
+        console.log(`🔐 Token status: ${formatTokenExpiry(token)}`);
+    }
+
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
         ...options.headers,
     };
 
+    // IMPORTANT: Always attach the Bearer token if available
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+        console.log(`🔐 Authorization header attached: Bearer ${token.substring(0, 20)}...`);
+    } else {
+        console.warn('⚠️ No token available for authenticated request');
     }
 
-    console.log(`API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
+    console.log(`📡 API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers,
+        });
 
-    const data = await response.json().catch(() => ({ message: 'Request failed' }));
+        // Handle 401 Unauthorized - trigger re-authentication
+        if (response.status === 401) {
+            console.error('❌ 401 Unauthorized - Token may be invalid or expired');
 
-    if (!response.ok) {
-        console.error('API Error Response:', data);
-        // Backend returns { message: "..." }, so we use that
-        const errorMessage = data.message || data.error || 'Request failed';
-        throw new Error(errorMessage);
+            // Debug: Log full token info
+            debugToken();
+
+            handleAuthExpired('Server returned 401 Unauthorized');
+            throw new Error('Your session has expired. Please log in again.');
+        }
+
+        const data = await response.json().catch(() => ({ message: 'Request failed' }));
+
+        if (!response.ok) {
+            console.error('❌ API Error Response:', {
+                status: response.status,
+                statusText: response.statusText,
+                data
+            });
+            // Backend returns { message: "..." }, so we use that
+            const errorMessage = data.message || data.error || 'Request failed';
+            throw new Error(errorMessage);
+        }
+
+        return data;
+    } catch (error) {
+        // Re-throw with more context
+        if (error instanceof Error) {
+            throw error;
+        }
+        throw new Error('Network error occurred');
     }
-
-    return data;
 };
 
 // Auth API
@@ -178,3 +243,6 @@ export const progressAPI = {
         return apiRequest('/progress');
     },
 };
+
+// Re-export debugToken for easy console access
+export { debugToken } from './tokenHelper';
