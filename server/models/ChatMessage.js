@@ -18,6 +18,10 @@ const chatMessageSchema = new mongoose.Schema({
     timestamp: {
         type: Date,
         default: Date.now
+    },
+    emotion: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true

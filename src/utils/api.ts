@@ -254,6 +254,13 @@ export const chatAPI = {
             method: 'DELETE',
         });
     },
+
+    getReply: async (message: string) => {
+        return apiRequest('/chat/reply', {
+            method: 'POST',
+            body: JSON.stringify({ message }),
+        });
+    },
 };
 
 // Progress API
