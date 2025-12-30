@@ -6,6 +6,18 @@ export interface ChatMessage {
   sender: "user" | "ai";
   content: string;
   timestamp: Date;
+  type?: 'text' | 'video';
+  video?: {
+    title: string;
+    videoId: string;
+    platform: string;
+  };
+  followUp?: string;
+  multiModal?: {
+    type: 'exercise' | 'audio' | 'writing' | 'video';
+    label: string;
+    id: string;
+  }[];
 }
 
 // Define chat session interface
@@ -15,11 +27,16 @@ export interface ChatSession {
   date: Date;
 }
 
-// Main function - generates intelligent, mood-aware responses via Backend
 export const getChatGPTResponse = async (
   userMessage: string,
   conversationHistory: ChatMessage[] = []
-): Promise<string> => {
+): Promise<{
+  reply: string;
+  type?: 'text' | 'video';
+  video?: any;
+  followUp?: string;
+  multiModal?: any[];
+}> => {
   console.log("Requesting AI response from backend...");
 
   // Add natural typing delay (Step 8: 1200ms)
@@ -27,11 +44,20 @@ export const getChatGPTResponse = async (
 
   try {
     const response = await chatAPI.getReply(userMessage);
-    return response.reply;
+    return {
+      reply: response.reply || response.text,
+      type: response.type,
+      video: response.video,
+      followUp: response.followUp,
+      multiModal: response.multiModal
+    };
   } catch (error) {
     console.error("Error getting AI response:", error);
     // Fallback if backend fails (though ideally shouldn't happen)
-    return "I'm having trouble connecting right now. I'm still here with you—could you try sending that again?";
+    return {
+      reply: "I'm having trouble connecting right now. I'm still here with you—could you try sending that again?",
+      type: 'text'
+    };
   }
 };
 
@@ -53,7 +79,9 @@ export const getUserChatHistory = async (userId: string): Promise<ChatMessage[]>
       id: msg._id || msg.id,
       sender: msg.isUser ? "user" : "ai",
       content: msg.content,
-      timestamp: new Date(msg.timestamp)
+      timestamp: new Date(msg.timestamp),
+      type: msg.type,
+      video: msg.video
     }));
   } catch (error) {
     console.error("Error getting chat history:", error);

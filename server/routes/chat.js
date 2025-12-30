@@ -52,7 +52,7 @@ router.post('/reply', authMiddleware, async (req, res) => {
     try {
         const { message } = req.body; // User's message
 
-        const { text, emotion } = generateReply(message);
+        const { text, emotion, type, video, followUp, multiModal } = generateReply(message, req.userId);
 
         // Save AI response
         const aiMessage = new ChatMessage({
@@ -60,16 +60,22 @@ router.post('/reply', authMiddleware, async (req, res) => {
             content: text,
             isUser: false,
             timestamp: new Date(),
-            // We can optionally store the emotion the AI was responding to, 
-            // or leave it null as the AI itself doesn't "have" the emotion.
-            // For tracking, it might be useful to know what this reply was regarding.
-            // But strict Step 9 implies detecting it on the "message" (User's info).
-            emotion: null
+            emotion: null,
+            type: type || 'text',
+            video: video || null,
+            followUp: followUp || null,
+            multiModal: multiModal || []
         });
 
         await aiMessage.save();
 
-        res.json({ reply: text });
+        res.json({
+            reply: text,
+            type: type || 'text',
+            video: video || null,
+            followUp: followUp || null,
+            multiModal: multiModal || []
+        });
     } catch (error) {
         console.error('Generate AI reply error:', error);
         res.status(500).json({ error: 'Failed to generate reply' });

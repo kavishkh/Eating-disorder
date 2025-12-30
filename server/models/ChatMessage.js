@@ -22,7 +22,29 @@ const chatMessageSchema = new mongoose.Schema({
     emotion: {
         type: String,
         default: null
-    }
+    },
+    type: {
+        type: String,
+        enum: ['text', 'video'],
+        default: 'text'
+    },
+    video: {
+        title: String,
+        videoId: String,
+        platform: String
+    },
+    followUp: {
+        type: String,
+        default: null
+    },
+    multiModal: [{
+        type: {
+            type: String,
+            enum: ['exercise', 'audio', 'writing', 'video']
+        },
+        label: String,
+        id: String
+    }]
 }, {
     timestamps: true
 });
