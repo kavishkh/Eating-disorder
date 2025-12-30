@@ -22,7 +22,12 @@ export function detectIntent(message) {
     if (text.includes("food") || text.includes("eat") || text.includes("struggle")) return "video_answer_food";
     if (text.includes("motivation") || text.includes("recovery")) return "video_answer_motivation";
 
-    if (text.includes("thank") || text.includes("thanks") || text.includes("okay") || text.includes("good")) return "gratitude";
+    // Prevent "not so good" from triggering gratitude intent
+    const isNegative = text.includes("not good") || text.includes("not so good") || text.includes("don't feel good");
+
+    if (!isNegative && (text.includes("thank") || text.includes("thanks") || text.includes("okay") || text.includes("good"))) {
+        return "gratitude";
+    }
 
     return "support";
 }
@@ -57,7 +62,12 @@ export function detectEmotion(message) {
     const text = message.toLowerCase();
 
     // 1. Crisis check first (Safety & Crisis Mode)
-    const crisisKeywords = ["kill myself", "end everything", "suicide", "disappear", "can't do this anymore", "want to die", "hurt myself"];
+    const crisisKeywords = [
+        "kill myself", "end everything", "suicide", "disappear",
+        "can't do this anymore", "want to die", "hurt myself",
+        "can't go on", "maybe i should kill myself", "hurt myself now",
+        "i want to disappear", "i want to die"
+    ];
     if (crisisKeywords.some(k => text.includes(k))) return { type: "crisis", level: "high" };
 
     // 2. Emotion mapping with intensity
@@ -66,7 +76,7 @@ export function detectEmotion(message) {
         { type: "binge_urge", keywords: ["binge", "urge", "overeat", "stuff myself", "can't stop eating"] },
         { type: "guilt", keywords: ["guilty", "shame", "disgust", "regret"] },
         { type: "anxiety", keywords: ["anxious", "panic", "scared", "fear", "overwhelmed", "nervous"] },
-        { type: "sadness", keywords: ["sad", "bad", "empty", "down", "depressed", "lonely"] }
+        { type: "sadness", keywords: ["sad", "bad", "empty", "down", "depressed", "lonely", "not good", "not so good"] }
     ];
 
     for (const e of emotions) {
@@ -108,6 +118,24 @@ function getSmartFollowUp(emotion, intent, lastSuggestion) {
     return "How are you feeling about that?";
 }
 
+// Helper: Get a response from the library based on emotion and level
+function getReplyForEmotion(emotion, level) {
+    const emotionResponses = responses[emotion] || responses['neutral'];
+    let reply;
+    if (typeof emotionResponses === 'object' && !Array.isArray(emotionResponses)) {
+        const levelResponses = emotionResponses[level] || emotionResponses['medium'];
+        reply = levelResponses[Math.floor(Math.random() * levelResponses.length)];
+    } else {
+        reply = emotionResponses[Math.floor(Math.random() * emotionResponses.length)];
+    }
+
+    // Add tiny steps if emotion is strong (Step-by-Step Micro Help)
+    if (level === 'high' && (emotion === 'anxiety' || emotion === 'anger' || emotion === 'binge_urge')) {
+        reply += "\n\nLet's try these tiny steps right now:\n1. Pause and breathe for 10 seconds\n2. Sip some water\n3. Take one more breath. We're in this together.";
+    }
+    return reply;
+}
+
 // --- MAIN BRAIN ---
 export function generateReply(message, userId = 'default') {
     const context = getSession(userId);
@@ -129,7 +157,7 @@ export function generateReply(message, userId = 'default') {
         context.lastQuestionAsked = null;
         return {
             type: "text",
-            text: responses.crisis[Math.floor(Math.random() * responses.crisis.length)] + "\n\nYou are not alone. Please reach out to: \n- Crisis Text Line: Text HOME to 741741\n- National Suicide Prevention Lifeline: 988",
+            text: responses.crisis[0],
             emotion,
             level,
             multiModal: [
@@ -210,31 +238,29 @@ export function generateReply(message, userId = 'default') {
     }
 
     // --- GRATITUDE / CLOSURE ---
-    if (intent === 'gratitude') {
+    // Only trigger full closure if the user isn't ALSO expressing negative emotions
+    if (intent === 'gratitude' && emotion === 'neutral') {
         return {
             type: "text",
             text: "You're very welcome. I'm glad I could be here for you. Is there anything else you'd like to share or try?",
             emotion: "neutral",
             level: "medium"
         };
+    } else if (intent === 'gratitude' && emotion !== 'neutral') {
+        // User said "Thanks, but it's hard" - acknowledge gratitude then provide support
+        const SupportReply = getReplyForEmotion(emotion, level);
+        return {
+            type: "text",
+            text: `You're very welcome. I'm glad you're sharing this with me.\n\n${SupportReply}`,
+            emotion: emotion,
+            level: level,
+            followUp: getSmartFollowUp(emotionObj, "support", context.lastSuggestion)
+        };
     }
 
     // --- DEFAULT SUPPORT ---
     context.lastQuestionAsked = null;
-    const emotionResponses = responses[emotion] || responses['neutral'];
-    // For structured responses if it's an object with levels
-    let reply;
-    if (typeof emotionResponses === 'object' && !Array.isArray(emotionResponses)) {
-        const levelResponses = emotionResponses[level] || emotionResponses['medium'];
-        reply = levelResponses[Math.floor(Math.random() * levelResponses.length)];
-    } else {
-        reply = emotionResponses[Math.floor(Math.random() * emotionResponses.length)];
-    }
-
-    // Add tiny steps if emotion is strong (Step-by-Step Micro Help)
-    if (level === 'high' && (emotion === 'anxiety' || emotion === 'anger' || emotion === 'binge_urge')) {
-        reply += "\n\nLet's try these tiny steps right now:\n1. Pause and breathe for 10 seconds\n2. Sip some water\n3. Take one more breath. We're in this together.";
-    }
+    const reply = getReplyForEmotion(emotion, level);
 
     return {
         type: "text",

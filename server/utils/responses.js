@@ -36,8 +36,8 @@ const responses = {
 
     sadness: {
         low: [
-            "It's okay to feel a little down today. Some days are just quieter than others.",
-            "I'm here to listen if you want to talk about it."
+            "I’m really sorry you’re feeling this way. Thanks for telling me — having a not-so-good day can feel heavy.\n\nDo you want to talk about what made today hard, or would you prefer something calming right now?",
+            "I’m really sorry today hasn’t been good for you. I’m glad you told me — you don’t have to carry it alone.\n\nWould it help to talk about what’s bothering you, or should we try something gentle to help you feel a bit calmer?"
         ],
         medium: [
             "I’m sorry you’re feeling this way. You’re not weak for feeling this.",
@@ -91,9 +91,7 @@ const responses = {
     ],
 
     crisis: [
-        "I’m really concerned about you. You deserve immediate support and safety.",
-        "It sounds like things are incredibly heavy right now. Please reach out to someone who can help you stay safe.",
-        "You matter, and your safety is the most important thing right now. Please consider calling a crisis line."
+        "I’m really sorry you’re feeling overwhelmed. You are not alone and there **is help available right now**.\n\nPlease reach out to one of these services in India:\n\n• **Tele-MANAS**: Dial **14416** or **1800-891-4416** — free 24x7 mental health support.\n• **KIRAN Helpline**: **1800-599-0019** — free toll-free emotional support.\n• **AASRA Suicide Prevention**: **+91-22-27546669** — confidential counselling.\n• **Vandrevala Foundation**: **+91-9999-666-555** — 24/7 crisis intervention.\n• **If you are in immediate danger, call 112 right now.**\n\nYou deserve help and support — please reach out to someone right away."
     ]
 };
 

@@ -29,6 +29,7 @@ export interface ChatSession {
 
 export const getChatGPTResponse = async (
   userMessage: string,
+  chatId: string,
   conversationHistory: ChatMessage[] = []
 ): Promise<{
   reply: string;
@@ -43,7 +44,7 @@ export const getChatGPTResponse = async (
   await new Promise(resolve => setTimeout(resolve, 1200));
 
   try {
-    const response = await chatAPI.getReply(userMessage);
+    const response = await chatAPI.getReply(userMessage, chatId);
     return {
       reply: response.reply || response.text,
       type: response.type,
@@ -61,27 +62,50 @@ export const getChatGPTResponse = async (
   }
 };
 
-// Save chat message to user's account
-export const saveChatMessage = async (userId: string, message: ChatMessage): Promise<void> => {
+// Start a new chat session
+export const initializeNewChat = async (): Promise<string> => {
   try {
-    await chatAPI.saveMessage(message.content, message.sender === "user");
+    const response = await chatAPI.createChat();
+    return response.chatId;
+  } catch (error) {
+    console.error("Error initializing new chat:", error);
+    throw error;
+  }
+};
+
+// Save chat message to user's account
+export const saveChatMessage = async (userId: string, message: ChatMessage, chatId: string): Promise<void> => {
+  try {
+    await chatAPI.saveMessage(message.content, message.sender === "user", chatId);
   } catch (error) {
     console.error("Error saving chat message:", error);
     throw error;
   }
 };
 
-// Get chat history for a user
-export const getUserChatHistory = async (userId: string): Promise<ChatMessage[]> => {
+// Get chat sessions for a user
+export const getUserChatSessions = async (): Promise<any[]> => {
   try {
-    const messages = await chatAPI.getHistory();
+    return await chatAPI.getSessions();
+  } catch (error) {
+    console.error("Error getting chat sessions:", error);
+    return [];
+  }
+};
+
+// Get chat history for a specific session
+export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> => {
+  try {
+    const messages = await chatAPI.getMessages(chatId);
     return messages.map((msg: any) => ({
       id: msg._id || msg.id,
       sender: msg.isUser ? "user" : "ai",
       content: msg.content,
       timestamp: new Date(msg.timestamp),
       type: msg.type,
-      video: msg.video
+      video: msg.video,
+      followUp: msg.followUp,
+      multiModal: msg.multiModal
     }));
   } catch (error) {
     console.error("Error getting chat history:", error);

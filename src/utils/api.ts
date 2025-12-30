@@ -238,27 +238,37 @@ export const goalAPI = {
 
 // Chat API
 export const chatAPI = {
-    getHistory: async () => {
-        return apiRequest('/chat');
+    getSessions: async () => {
+        return apiRequest('/chat/sessions');
     },
 
-    saveMessage: async (content: string, isUser: boolean) => {
-        return apiRequest('/chat', {
-            method: 'POST',
-            body: JSON.stringify({ content, isUser }),
+    createChat: async () => {
+        return apiRequest('/chat/create', {
+            method: 'POST'
         });
     },
 
-    clearHistory: async () => {
+    getMessages: async (chatId: string) => {
+        return apiRequest(`/chat/${chatId}`);
+    },
+
+    saveMessage: async (content: string, isUser: boolean, chatId: string) => {
         return apiRequest('/chat', {
+            method: 'POST',
+            body: JSON.stringify({ content, isUser, chatId }),
+        });
+    },
+
+    clearHistory: async (chatId: string) => {
+        return apiRequest(`/chat/${chatId}`, {
             method: 'DELETE',
         });
     },
 
-    getReply: async (message: string) => {
+    getReply: async (message: string, chatId: string) => {
         return apiRequest('/chat/reply', {
             method: 'POST',
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, chatId }),
         });
     },
 };
