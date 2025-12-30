@@ -29,7 +29,8 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
-  Plus
+  Plus,
+  Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -38,10 +39,74 @@ import {
   saveChatMessage,
   getUserChatSessions,
   initializeNewChat,
-  getChatMessages
+  getChatMessages,
+  deleteChatSession
 } from "@/services/chatService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { calmAudioLibrary } from "../data/calmAudio";
+
+// Add this Component for Safe Audio Rendering (STEP 4)
+function AudioCard({ title, src }: { title: string; src: string }) {
+  const { toast } = useToast();
+
+  if (!src) {
+    console.error("Audio source missing");
+    return null;
+  }
+
+  const handleAudioError = (e: any) => {
+    console.error("Audio playback error:", e);
+    const errorCode = e.target.error ? e.target.error.code : 'unknown';
+    toast({
+      title: "Audio Connectivity Issue",
+      description: `Unable to load "${title}" (Status: ${errorCode}). Try the download link or refresh.`,
+      variant: "destructive"
+    });
+  };
+
+  return (
+    <div className="mt-4 p-5 rounded-2xl border-2 border-healing-200 bg-healing-50/50 shadow-sm flex flex-col gap-4 animate-in zoom-in-95 duration-300">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-healing-800">
+          <div className="bg-healing-200 p-2 rounded-lg">
+            <Music size={18} className="text-healing-700" />
+          </div>
+          <div>
+            <p className="text-sm font-bold leading-none">{title}</p>
+            <p className="text-[10px] text-healing-600 mt-1 uppercase tracking-wider font-semibold">Healing Audio</p>
+          </div>
+        </div>
+        <a
+          href={src}
+          download
+          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+          title="Test if file is reachable"
+        >
+          Check File
+        </a>
+      </div>
+
+      <audio
+        controls
+        className="w-full h-10 custom-audio"
+        onError={handleAudioError}
+        preload="metadata"
+      >
+        <source src={src} type={src.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'} />
+        Your browser does not support the audio element.
+      </audio>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></div>
+          <p className="text-[10px] text-gray-500 italic">Mindful listening recommended. Focus on your breath.</p>
+        </div>
+        <p className="text-[10px] text-healing-600 font-semibold px-3.5">🎧 Recommended: Use headphones or earphones for the best experience.</p>
+      </div>
+    </div>
+  );
+}
 
 // Add this new component for API debugging
 const ApiErrorDebug = ({ error, onClose }) => {
@@ -130,70 +195,9 @@ const AIChatPage = () => {
   const [retryingConnection, setRetryingConnection] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
 
-  // Audio Playback State
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioError, setAudioError] = useState(false);
-
   // Add these new state variables for error debugging
   const [apiError, setApiError] = useState(null);
   const [debugMode, setDebugMode] = useState(false);
-
-  // Clean up audio on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  const handlePlayAudio = () => {
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio("https://archive.org/download/meditation-music-2019/Enough%20For%20Happiness%20%28Original%20Mix%29.mp3");
-        audioRef.current.loop = true;
-
-        audioRef.current.addEventListener('error', () => {
-          setAudioError(true);
-          setIsPlayingAudio(false);
-          toast({
-            title: "Audio Error",
-            description: "Could not load the calming track. Please try again later.",
-            variant: "destructive"
-          });
-        });
-      }
-
-      audioRef.current.play()
-        .then(() => {
-          setIsPlayingAudio(true);
-          setAudioError(false);
-          toast({
-            title: "Playing Calming Audio",
-            description: "Soft ambient sounds are playing to help you focus on your breathing.",
-          });
-        })
-        .catch(err => {
-          console.error("Audio play failed:", err);
-          setAudioError(true);
-        });
-    } catch (error) {
-      console.error("Audio setup error:", error);
-    }
-  };
-
-  const handleStopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlayingAudio(false);
-      toast({
-        title: "Audio Stopped",
-        description: "The calming track has been paused.",
-      });
-    }
-  };
 
   // Load chat history when component mounts
   useEffect(() => {
@@ -364,6 +368,43 @@ const AIChatPage = () => {
     }
   };
 
+  const handleDeleteSession = async (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation(); // Prevent selecting the chat when clicking delete
+
+    if (window.confirm("Are you sure you want to delete this conversation? This cannot be undone.")) {
+      try {
+        const success = await deleteChatSession(chatId);
+        if (success) {
+          toast({
+            title: "Session deleted",
+            description: "The conversation has been removed.",
+          });
+
+          // Refresh sessions
+          const updatedSessions = await getUserChatSessions();
+          setChatSessions(updatedSessions);
+
+          // If current session was deleted, switch to another or start new
+          if (currentChatId === chatId) {
+            if (updatedSessions.length > 0) {
+              selectChatSession(updatedSessions[0]._id);
+            } else {
+              handleNewChat(true);
+            }
+          }
+        } else {
+          toast({
+            title: "Delete failed",
+            description: "Could not remove the session. Please try again.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error("Error in delete handler:", error);
+      }
+    }
+  };
+
   const handleRetryConnection = async () => {
     setRetryingConnection(true);
     setTimeout(async () => {
@@ -433,10 +474,11 @@ const AIChatPage = () => {
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: "ai",
-        content: aiResponse.reply,
+        content: aiResponse.reply || (aiResponse as any).text,
         timestamp: new Date(),
         type: aiResponse.type,
         video: aiResponse.video,
+        audio: aiResponse.audio, // Added missing audio field
         followUp: aiResponse.followUp,
         multiModal: aiResponse.multiModal
       };
@@ -461,7 +503,7 @@ const AIChatPage = () => {
     if (action.type === 'exercise') {
       handleSendMessage(null as any, "Let's try that exercise together.");
     } else if (action.type === 'audio') {
-      handlePlayAudio();
+      handleSendMessage(null as any, "Can you play some calming audio for me?");
     } else if (action.type === 'writing') {
       handleSendMessage(null as any, "I want to write about how I feel.");
     } else if (action.type === 'video') {
@@ -482,26 +524,6 @@ const AIChatPage = () => {
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] max-w-6xl mx-auto w-full">
-        {/* Audio Floating Bar */}
-        {isPlayingAudio && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 duration-500">
-            <Badge variant="secondary" className="px-4 py-2 bg-healing-600 text-white border-none shadow-lg flex items-center gap-3 rounded-full">
-              <div className="flex gap-1 items-center">
-                <Music size={14} className="animate-pulse" />
-                <span className="text-xs font-bold">Calming Track Playing...</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleStopAudio}
-                className="h-6 w-6 p-0 hover:bg-healing-700 text-white rounded-full"
-              >
-                <X size={14} />
-              </Button>
-            </Badge>
-          </div>
-        )}
-
         {/* Header Area */}
         <div className="mb-4 flex items-center justify-between px-2">
           <div className="flex items-center gap-3">
@@ -568,19 +590,33 @@ const AIChatPage = () => {
                 <div className="text-center py-8 text-xs text-gray-400">No sessions yet</div>
               ) : (
                 chatSessions.map((session) => (
-                  <button
+                  <div
                     key={session._id}
-                    onClick={() => selectChatSession(session._id)}
-                    className={`w-full text-left p-2.5 rounded-xl text-xs transition-all ${currentChatId === session._id
-                      ? "bg-healing-100 text-healing-900 font-bold border border-healing-200"
-                      : "text-gray-600 hover:bg-healing-50 hover:text-healing-700"
-                      }`}
+                    className="relative group"
                   >
-                    <div className="truncate">{session.title || "New Conversation"}</div>
-                    <div className="text-[10px] opacity-60 mt-0.5">
-                      {new Date(session.updatedAt).toLocaleDateString()}
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => selectChatSession(session._id)}
+                      className={`w-full text-left p-2.5 rounded-xl text-xs transition-all flex justify-between items-start ${currentChatId === session._id
+                        ? "bg-healing-100 text-healing-900 font-bold border border-healing-200"
+                        : "text-gray-600 hover:bg-healing-50 hover:text-healing-700"
+                        }`}
+                    >
+                      <div className="truncate flex-1">
+                        <div className="truncate pr-6">{session.title || "New Conversation"}</div>
+                        <div className="text-[10px] opacity-60 mt-0.5">
+                          {new Date(session.updatedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 hover:bg-red-50 ${currentChatId === session._id ? "opacity-100" : ""}`}
+                      onClick={(e) => handleDeleteSession(e, session._id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
                 ))
               )}
             </div>
@@ -677,6 +713,10 @@ const AIChatPage = () => {
                               ></iframe>
                               <div className="bg-white p-2 text-[10px] font-bold text-healing-700 bg-healing-50/50">{msg.video.title}</div>
                             </div>
+                          )}
+
+                          {msg.type === 'audio' && msg.audio && (
+                            <AudioCard title={msg.audio.title} src={msg.audio.src} />
                           )}
                         </div>
 

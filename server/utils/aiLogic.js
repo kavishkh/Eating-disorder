@@ -8,6 +8,7 @@ I help users slow down, feel safe, and resist disordered eating urges.”
 
 import { responses } from './responses.js';
 import { knowledgeBase, videoLibrary } from './knowledgeBase.js';
+import { audioLibrary } from './audioLibrary.js';
 import { getSession } from './sessionStore.js';
 
 // --- LAYER 1: INTENT DETECTION ---
@@ -15,6 +16,7 @@ export function detectIntent(message) {
     const text = message.toLowerCase();
 
     if (text.includes("video") || text.includes("watch")) return "video";
+    if (text.includes("audio") || text.includes("music") || text.includes("sound") || text.includes("listen") || text.includes("play")) return "audio";
     if (text.includes("how") || text.includes("what") || text.includes("tip") || text.includes("advice") || text.includes("help me with")) return "search";
 
     // Check if user is answering a video clarification request
@@ -212,6 +214,63 @@ export function generateReply(message, userId = 'default') {
                 platform: "youtube"
             },
             followUp: "Did the video help even a little?"
+        };
+    }
+
+    // --- DETECT "READY TO LISTEN" INTENT ---
+    const isReadyToListen = (text) => {
+        text = text.toLowerCase();
+        return (
+            text.includes("ready") ||
+            text.includes("yes") ||
+            text.includes("ok") ||
+            text.includes("play")
+        );
+    };
+
+    // --- AUDIO FLOW (Mindful Listening Fix) ---
+    // Handle the confirmation step
+    if (isReadyToListen(message) && context.pendingAudio) {
+        const audioData = context.pendingAudio;
+        context.pendingAudio = null; // Clear it after delivery
+        return {
+            type: "audio",
+            text: "Alright. You can start listening whenever you’re ready. For the best experience, please use earphones or headphones.",
+            emotion,
+            level,
+            audio: audioData,
+            followUp: "Take your time. How are you feeling after the audio?"
+        };
+    }
+
+    // Handle initial request
+    if (intent === 'audio') {
+        let category = 'meditation';
+        if (emotion === 'binge_urge' || emotion === 'anxiety') category = 'breathing';
+        else if (emotion === 'neutral') category = 'music';
+        else if (emotion === 'sadness') category = 'nature';
+
+        let list = audioLibrary[category];
+
+        // Safety Guard (STEP 8: No thunder for panic users)
+        if (emotion === 'anxiety' || emotion === 'crisis') {
+            list = list.filter(a => !a.title.toLowerCase().includes('heavy rain') && !a.title.toLowerCase().includes('thunder'));
+        }
+
+        const selectedAudio = list[Math.floor(Math.random() * list.length)];
+
+        // STORE "PENDING AUDIO" (STEP 2)
+        context.pendingAudio = {
+            title: selectedAudio.title,
+            src: selectedAudio.src
+        };
+
+        return {
+            type: "text",
+            text: `I’ve picked out some ${category} sounds for you. Let me know when you’re ready to listen. For the best experience, please use earphones or headphones.`,
+            emotion,
+            level,
+            followUp: "Shall I play it for you now?"
         };
     }
 

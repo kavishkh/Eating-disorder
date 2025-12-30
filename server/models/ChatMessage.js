@@ -30,13 +30,17 @@ const chatMessageSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['text', 'video'],
+        enum: ['text', 'video', 'audio'],
         default: 'text'
     },
     video: {
         title: String,
         videoId: String,
         platform: String
+    },
+    audio: {
+        title: String,
+        src: String
     },
     followUp: {
         type: String,

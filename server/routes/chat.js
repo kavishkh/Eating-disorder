@@ -98,7 +98,7 @@ router.post('/reply', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Chat ID is required' });
         }
 
-        const { text, emotion, type, video, followUp, multiModal } = generateReply(message, req.userId);
+        const { text, emotion, type, video, audio, followUp, multiModal } = generateReply(message, req.userId);
 
         // Save AI response
         const aiMessage = new ChatMessage({
@@ -110,6 +110,7 @@ router.post('/reply', authMiddleware, async (req, res) => {
             emotion: null,
             type: type || 'text',
             video: video || null,
+            audio: audio || null,
             followUp: followUp || null,
             multiModal: multiModal || []
         });
@@ -126,6 +127,7 @@ router.post('/reply', authMiddleware, async (req, res) => {
             reply: text,
             type: type || 'text',
             video: video || null,
+            audio: audio || null,
             followUp: followUp || null,
             multiModal: multiModal || []
         });

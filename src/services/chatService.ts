@@ -6,11 +6,15 @@ export interface ChatMessage {
   sender: "user" | "ai";
   content: string;
   timestamp: Date;
-  type?: 'text' | 'video';
+  type?: 'text' | 'video' | 'audio';
   video?: {
     title: string;
     videoId: string;
     platform: string;
+  };
+  audio?: {
+    title: string;
+    src: string;
   };
   followUp?: string;
   multiModal?: {
@@ -33,8 +37,9 @@ export const getChatGPTResponse = async (
   conversationHistory: ChatMessage[] = []
 ): Promise<{
   reply: string;
-  type?: 'text' | 'video';
+  type?: 'text' | 'video' | 'audio';
   video?: any;
+  audio?: any;
   followUp?: string;
   multiModal?: any[];
 }> => {
@@ -49,6 +54,7 @@ export const getChatGPTResponse = async (
       reply: response.reply || response.text,
       type: response.type,
       video: response.video,
+      audio: response.audio,
       followUp: response.followUp,
       multiModal: response.multiModal
     };
@@ -104,11 +110,22 @@ export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> =>
       timestamp: new Date(msg.timestamp),
       type: msg.type,
       video: msg.video,
+      audio: msg.audio,
       followUp: msg.followUp,
       multiModal: msg.multiModal
     }));
   } catch (error) {
     console.error("Error getting chat history:", error);
     return [];
+  }
+};
+
+export const deleteChatSession = async (chatId: string): Promise<boolean> => {
+  try {
+    await chatAPI.clearHistory(chatId);
+    return true;
+  } catch (error) {
+    console.error("Error deleting chat session:", error);
+    return false;
   }
 };
