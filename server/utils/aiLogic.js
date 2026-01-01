@@ -105,33 +105,67 @@ function searchKnowledgeBase(question) {
 }
 
 // --- LAYER 4: SMART FOLLOW-UP QUESTIONS ---
-function getSmartFollowUp(emotion, intent, lastSuggestion) {
-    if (intent === 'video') return "Did the video help even a little?";
-    if (intent === 'search') return "Does that make sense, or should we try a different approach?";
+function getSmartFollowUp(emotion, intent, lastSuggestion, lastFollowUp = null) {
+    const followUps = {
+        video: [
+            "Did that video help distract you even a little?",
+            "What did you think of that video?",
+            "I hope that video felt like a gentle break. How's your head now?"
+        ],
+        search: [
+            "Does that advice feel doable, or should we try something else?",
+            "I'm here to dive deeper if any of that was confusing.",
+            "Want to try one of those steps together?"
+        ],
+        anxiety: [
+            "Should we try a 1-minute grounding exercise together?",
+            "Would focusing on your breath help right now?",
+            "Do you need a distraction, or do you want to keep talking?"
+        ],
+        binge_urge: [
+            "Do you want to try a short distraction task right now?",
+            "I'm right here with you. What do you need most this second?",
+            "Should we count to 60 together while the urge passes?"
+        ],
+        sadness: [
+            "I'm listening. Do you want to share more, or would you prefer a distraction?",
+            "How can I best support you in this heavy moment?",
+            "Remember, you don't have to carry this alone. What's one small kind thing you could do for yourself?"
+        ],
+        default: [
+            "How are you feeling about that?",
+            "I'm here for whatever is on your mind.",
+            "What feels like the next right step for you?"
+        ]
+    };
 
-    if (emotion.type === 'anxiety' || emotion.type === 'anger') {
-        return "Should we try a 1-minute grounding exercise together?";
-    }
+    let pool = followUps[intent] || followUps[emotion.type] || followUps.default;
+    // Prevent immediate repetition of follow-up
+    if (lastFollowUp) pool = pool.filter(f => f !== lastFollowUp);
 
-    if (emotion.type === 'binge_urge') {
-        return "Do you want to try a short distraction task right now?";
-    }
-
-    return "How are you feeling about that?";
+    return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// Helper: Get a response from the library based on emotion and level
-function getReplyForEmotion(emotion, level) {
+// Helper: Get a response from the library based on emotion and level (Validate -> Guide)
+function getReplyForEmotion(emotion, level, lastReply = null) {
     const emotionResponses = responses[emotion] || responses['neutral'];
-    let reply;
+    let pool;
+
     if (typeof emotionResponses === 'object' && !Array.isArray(emotionResponses)) {
-        const levelResponses = emotionResponses[level] || emotionResponses['medium'];
-        reply = levelResponses[Math.floor(Math.random() * levelResponses.length)];
+        pool = emotionResponses[level] || emotionResponses['medium'];
     } else {
-        reply = emotionResponses[Math.floor(Math.random() * emotionResponses.length)];
+        pool = emotionResponses;
     }
 
-    // Add tiny steps if emotion is strong (Step-by-Step Micro Help)
+    // Loop prevention: remove the last sent reply from the pool if possible
+    let available = pool;
+    if (lastReply && pool.length > 1) {
+        available = pool.filter(r => r !== lastReply);
+    }
+
+    let reply = available[Math.floor(Math.random() * available.length)];
+
+    // Add tiny steps if emotion is strong (Step-by-Step Micro Help) (GUIDE)
     if (level === 'high' && (emotion === 'anxiety' || emotion === 'anger' || emotion === 'binge_urge')) {
         reply += "\n\nLet's try these tiny steps right now:\n1. Pause and breathe for 10 seconds\n2. Sip some water\n3. Take one more breath. We're in this together.";
     }
@@ -154,14 +188,26 @@ export function generateReply(message, userId = 'default') {
         detectedIntent: intent
     });
 
-    // Safety Override (Crisis Mode)
-    if (emotion === 'crisis') {
+    // Safety Override (Crisis Mode Lock)
+    if (context.crisisActive || emotion === 'crisis') {
+        const resetKeywords = ["i am safe", "i felt better", "i called", "i spoke to someone", "thank you i am okay now"];
+        if (context.crisisActive && resetKeywords.some(k => message.toLowerCase().includes(k))) {
+            context.crisisActive = false;
+            return {
+                type: "text",
+                text: "I'm so glad to hear you're feeling a bit safer and that you've reached out. I'm still here for you. How else can I support you right now?",
+                emotion: "neutral",
+                level: "medium"
+            };
+        }
+
+        context.crisisActive = true;
         context.lastQuestionAsked = null;
         return {
             type: "text",
             text: responses.crisis[0],
-            emotion,
-            level,
+            emotion: "crisis",
+            level: "high",
             multiModal: [
                 { type: "exercise", label: "Try 1-minute grounding", id: "grounding" },
                 { type: "audio", label: "Play calming audio", id: "calm_audio" }
@@ -299,34 +345,47 @@ export function generateReply(message, userId = 'default') {
     // --- GRATITUDE / CLOSURE ---
     // Only trigger full closure if the user isn't ALSO expressing negative emotions
     if (intent === 'gratitude' && emotion === 'neutral') {
+        const reply = "You're very welcome. I'm glad I could be here for you. Is there anything else you'd like to share or try?";
+        context.lastReply = reply;
+        context.lastFollowUp = null;
         return {
             type: "text",
-            text: "You're very welcome. I'm glad I could be here for you. Is there anything else you'd like to share or try?",
+            text: reply,
             emotion: "neutral",
             level: "medium"
         };
     } else if (intent === 'gratitude' && emotion !== 'neutral') {
         // User said "Thanks, but it's hard" - acknowledge gratitude then provide support
-        const SupportReply = getReplyForEmotion(emotion, level);
+        const SupportReply = getReplyForEmotion(emotion, level, context.lastReply);
+        const text = `You're very welcome. I'm glad you're sharing this with me.\n\n${SupportReply}`;
+        const followUp = getSmartFollowUp(emotionObj, "support", context.lastSuggestion, context.lastFollowUp);
+
+        context.lastReply = SupportReply;
+        context.lastFollowUp = followUp;
+
         return {
             type: "text",
-            text: `You're very welcome. I'm glad you're sharing this with me.\n\n${SupportReply}`,
+            text: text,
             emotion: emotion,
             level: level,
-            followUp: getSmartFollowUp(emotionObj, "support", context.lastSuggestion)
+            followUp: followUp
         };
     }
 
     // --- DEFAULT SUPPORT ---
     context.lastQuestionAsked = null;
-    const reply = getReplyForEmotion(emotion, level);
+    const reply = getReplyForEmotion(emotion, level, context.lastReply);
+    const followUp = getSmartFollowUp(emotionObj, intent, context.lastSuggestion, context.lastFollowUp);
+
+    context.lastReply = reply;
+    context.lastFollowUp = followUp;
 
     return {
         type: "text",
         text: reply,
         emotion: emotion,
         level: level,
-        followUp: getSmartFollowUp(emotionObj, intent, context.lastSuggestion),
+        followUp: followUp,
         multiModal: emotion === 'neutral' ? [] : [
             { type: "audio", label: "Play calming audio", id: "calm_audio" },
             { type: "writing", label: "Write how you feel", id: "journal" }

@@ -30,7 +30,9 @@ import {
   ChevronUp,
   MessageSquare,
   Plus,
-  Trash2
+  Trash2,
+  ThumbsUp,
+  ThumbsDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -405,6 +407,14 @@ const AIChatPage = () => {
     }
   };
 
+  const handleFeedback = (isPositive: boolean) => {
+    toast({
+      title: isPositive ? "Glad it helped! 🫶" : "Thanks for the feedback",
+      description: isPositive ? "I'll keep this in mind for the future." : "I'll try to find better suggestions for you.",
+      variant: "default"
+    });
+  };
+
   const handleRetryConnection = async () => {
     setRetryingConnection(true);
     setTimeout(async () => {
@@ -596,6 +606,7 @@ const AIChatPage = () => {
                   >
                     <button
                       onClick={() => selectChatSession(session._id)}
+                      aria-label={`Select conversation from ${new Date(session.updatedAt).toLocaleDateString()}`}
                       className={`w-full text-left p-2.5 rounded-xl text-xs transition-all flex justify-between items-start ${currentChatId === session._id
                         ? "bg-healing-100 text-healing-900 font-bold border border-healing-200"
                         : "text-gray-600 hover:bg-healing-50 hover:text-healing-700"
@@ -611,6 +622,7 @@ const AIChatPage = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Delete conversation"
                       className={`absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 hover:bg-red-50 ${currentChatId === session._id ? "opacity-100" : ""}`}
                       onClick={(e) => handleDeleteSession(e, session._id)}
                     >
@@ -632,8 +644,17 @@ const AIChatPage = () => {
                       <Bot size={18} />
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <CardTitle className="text-sm font-bold text-healing-900">Recovery Companion</CardTitle>
+                  <div className="flex flex-col">
+                    <CardTitle className="text-sm font-bold text-healing-900 flex items-center gap-2">
+                      Recovery Companion
+                      {messages.length > 0 && messages[messages.length - 1].sender === "ai" && (
+                        <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-4 border-healing-200 bg-healing-50 text-healing-700 font-bold uppercase tracking-wider">
+                          {messages[messages.length - 1].type === 'audio' ? '🎧 Audio Mode' :
+                            messages[messages.length - 1].type === 'video' ? '📺 Video Mode' :
+                              '🌿 Care Mode'}
+                        </Badge>
+                      )}
+                    </CardTitle>
                     <CardDescription className="text-[10px] flex items-center gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
                       Always here for you
@@ -742,8 +763,18 @@ const AIChatPage = () => {
                           </div>
                         )}
 
-                        <span className="text-[9px] text-gray-400 mt-1 px-1">
+                        <span className="text-[9px] text-gray-400 mt-1 px-1 flex items-center gap-2">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {msg.sender === "ai" && (
+                            <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleFeedback(true)} className="hover:text-healing-600 transition-colors" title="This helped">
+                                <ThumbsUp size={10} />
+                              </button>
+                              <button onClick={() => handleFeedback(false)} className="hover:text-amber-600 transition-colors" title="Try something else">
+                                <ThumbsDown size={10} />
+                              </button>
+                            </div>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -774,7 +805,8 @@ const AIChatPage = () => {
                 <Input
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="How's your recovery going today?"
+                  placeholder="Type how you're feeling..."
+                  aria-label="Chat message input"
                   disabled={isTyping || isLoading || connectionError}
                   className="rounded-2xl bg-healing-50/30 border-healing-100 h-11 focus-visible:ring-healing-400 focus-visible:border-none shadow-inner"
                 />

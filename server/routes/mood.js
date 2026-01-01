@@ -19,7 +19,13 @@ router.get('/', authMiddleware, async (req, res) => {
 // Check if mood recorded today
 router.get('/today', authMiddleware, async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        // Use local-friendly date (YYYY-MM-DD)
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const today = `${year}-${month}-${day}`;
+
         const mood = await MoodEntry.findOne({ userId: req.userId, date: today });
         res.json({ hasRecorded: !!mood });
     } catch (error) {
@@ -32,9 +38,12 @@ router.get('/today', authMiddleware, async (req, res) => {
 router.get('/recent', authMiddleware, async (req, res) => {
     try {
         const days = 7;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        const startDateStr = startDate.toISOString().split('T')[0];
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const startDateStr = `${year}-${month}-${day}`;
 
         const moods = await MoodEntry.find({
             userId: req.userId,
@@ -52,9 +61,12 @@ router.get('/recent', authMiddleware, async (req, res) => {
 router.get('/recent/:days', authMiddleware, async (req, res) => {
     try {
         const days = parseInt(req.params.days) || 7;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        const startDateStr = startDate.toISOString().split('T')[0];
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const startDateStr = `${year}-${month}-${day}`;
 
         const moods = await MoodEntry.find({
             userId: req.userId,
@@ -104,7 +116,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
         const mood = await MoodEntry.findOneAndUpdate(
             { _id: id, userId: req.userId },
-            updates,
+            { ...updates, timestamp: new Date().toISOString() },
             { new: true }
         );
 

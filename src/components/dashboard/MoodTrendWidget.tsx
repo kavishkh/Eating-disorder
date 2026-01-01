@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { MoodEntry } from '@/types/types';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
@@ -53,12 +53,12 @@ const MoodTrendWidget = ({
         // Fetch mood data from MongoDB
         const moods = await getUserRecentMoodEntries(currentUser.id, limit);
 
-        // Get the last 'limit' days
+        // Get the current week starting from Monday
+        const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
         const lastDays = [...Array(limit)].map((_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          return date.toISOString().split('T')[0];
-        }).reverse();
+          const date = addDays(monday, i);
+          return format(date, 'yyyy-MM-dd');
+        });
 
         // Map the dates to mood entries or use a default value
         const chartData = lastDays.map(date => {

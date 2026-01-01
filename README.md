@@ -1,144 +1,39 @@
-# Eating Disorder Recovery App - MongoDB Backend
+# AI Recovery Companion 🌿
 
-This application has been migrated from Firebase to MongoDB with Express backend.
+A supportive, non-judgmental AI assistant designed to help users navigate eating disorder recovery, reduce urges, and manage difficult emotions in real-time.
 
-## Setup Instructions
+## 🧠 Intelligence Architecture
 
-### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB Atlas account (or local MongoDB installation)
+### Core Logic: Validate & Guide
+The AI follows a strict clinical support framework:
+1.  **Detection**: Sentiment analysis identifies emotion (Anxiety, Guilt, Sadness, Binge Urges) and intensity (Low, Medium, High).
+2.  **Validation**: Every response begins with empathetic validation (e.g., "I hear how heavy this feels. You're not alone.").
+3.  **Guidance**: Provides context-aware actions, such as guided breathing for anxiety or distraction tasks for urges.
+4.  **Memory**: Tracks `lastReply` and `lastFollowUp` to avoid repetitive loops and ensure a natural conversation flow.
 
-### Environment Variables
-Create a `.env` file in the root directory with the following variables:
+### Safety First (Crisis Mode)
+- **Keyword Detection**: Monitored for high-risk phrases.
+- **Crisis mode lock**: When a crisis is detected, the AI locks into a safety state, prioritizing international/local helplines.
+- **Resolution Path**: The AI remains in safety mode until the user confirms they have reached out to a trusted person or are safe.
 
-```env
-MONGODB_URI=mongodb+srv://kavishkhanna06_db_user:Eatingdisorder12@cluster0.mhogpcx.mongodb.net/eating-disorder?retryWrites=true&w=majority
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-PORT=5000
-NODE_ENV=development
-VITE_API_URL=http://localhost:5000/api
-```
+## 🎧 Multimodal Support
 
-### Installation
+- **Calming Audio**: Intelligent selection of breathing exercises, nature sounds, or ambient meditation tracks based on emotion.
+- **Vetted Videos**: curated library of recovery-focused content to prevent trigger exposure.
+- **Reflective Journaling**: Integrated writing prompts for grounding.
 
-1. Install dependencies:
-```bash
-npm install
-```
+## 🛠️ Technology Stack
+- **Frontend**: React, TypeScript, Tailwind CSS, Framer Motion (Aesthetics)
+- **Backend**: Node.js, Express, MongoDB
+- **Security**: JWT Authentication, Bcrypt Password Hashing
+- **Aesthetics**: Premium Glassmorphism UI with healing color palettes (HSLA).
 
-2. Start the development server (runs both backend and frontend):
-```bash
-npm run dev
-```
+## 🚀 Setup & Testing
 
-This will start:
-- Backend server on http://localhost:5000
-- Frontend on http://localhost:5173 (or next available port)
+1.  **Clone the repository**
+2.  **Environment Variables**: Create a `.env` in `server/` with `JWT_SECRET` and `MONGODB_URI`.
+3.  **Install dependencies**: `npm install` (Root, Frontend, Backend).
+4.  **Run Locally**: `npm run dev` (Starts concurrently).
 
-### Available Scripts
-
-- `npm run dev` - Run both backend and frontend concurrently
-- `npm run server` - Run only the backend server
-- `npm run client` - Run only the frontend
-- `npm run build` - Build the frontend for production
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user (requires auth)
-- `PUT /api/auth/profile` - Update user profile (requires auth)
-
-### Moods
-- `GET /api/moods` - Get all mood entries (requires auth)
-- `GET /api/moods/recent/:days` - Get recent mood entries (requires auth)
-- `GET /api/moods/today` - Check if mood recorded today (requires auth)
-- `POST /api/moods` - Create mood entry (requires auth)
-- `PUT /api/moods/:id` - Update mood entry (requires auth)
-- `DELETE /api/moods/:id` - Delete mood entry (requires auth)
-
-### Goals
-- `GET /api/goals` - Get all goals (requires auth)
-- `POST /api/goals` - Create goal (requires auth)
-- `PUT /api/goals/:id` - Update goal (requires auth)
-- `DELETE /api/goals/:id` - Delete goal (requires auth)
-
-### Chat
-- `GET /api/chat` - Get chat history (requires auth)
-- `POST /api/chat` - Save chat message (requires auth)
-- `DELETE /api/chat` - Clear chat history (requires auth)
-
-### Progress
-- `GET /api/progress` - Get progress metrics (requires auth)
-
-## Database Schema
-
-### User
-```javascript
-{
-  email: String (required, unique),
-  password: String (required, hashed),
-  name: String,
-  goals: [String],
-  disorder: String,
-  registrationDate: Date,
-  onboardingCompleted: Boolean,
-  lastActivity: String,
-  moodEntries: Number,
-  progressMetrics: {
-    completedGoals: Number,
-    totalGoals: Number,
-    streakDays: Number,
-    lastActiveDate: String
-  }
-}
-```
-
-### MoodEntry
-```javascript
-{
-  userId: ObjectId (ref: User),
-  date: String,
-  mood: Number (1-5),
-  note: String,
-  timestamp: String
-}
-```
-
-### Goal
-```javascript
-{
-  userId: ObjectId (ref: User),
-  text: String,
-  completed: Boolean,
-  completedAt: String
-}
-```
-
-### ChatMessage
-```javascript
-{
-  userId: ObjectId (ref: User),
-  content: String,
-  isUser: Boolean,
-  timestamp: Date
-}
-```
-
-## Migration from Firebase
-
-The app has been fully migrated from Firebase to MongoDB:
-- ✅ Firebase Authentication → JWT-based authentication
-- ✅ Firestore → MongoDB with Mongoose
-- ✅ All service files updated to use REST API
-- ✅ Offline support maintained with localStorage
-- ✅ Network status monitoring preserved
-
-## Security Notes
-
-- Passwords are hashed using bcrypt
-- JWT tokens expire after 7 days
-- All API endpoints (except auth) require authentication
-- CORS is enabled for frontend access
-- Environment variables should never be committed to version control
+---
+*Disclaimer: This tool is a supportive companion and not a replacement for professional medical treatment.*

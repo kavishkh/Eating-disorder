@@ -13,6 +13,9 @@ export const getSession = (userId) => {
             lastSuggestion: null,
             seenVideos: [],
             pendingAudio: null,
+            crisisActive: false,
+            lastReply: null,
+            lastFollowUp: null,
             emotionHistory: [],
             interactionLog: []
         });

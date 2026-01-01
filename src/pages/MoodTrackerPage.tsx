@@ -23,7 +23,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { MoodEntry } from "@/types/types";
-import { saveMoodEntry, getUserMoodEntries } from "@/services/moodService";
+import { saveMoodEntry, getUserMoodEntries, updateMoodEntry } from "@/services/moodService";
+import { format, startOfWeek, addDays } from "date-fns";
 
 // Mood definitions
 const moodDefinitions = [
@@ -37,6 +38,7 @@ const moodDefinitions = [
 const MoodTrackerPage = () => {
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -53,6 +55,15 @@ const MoodTrackerPage = () => {
       try {
         const moods = await getUserMoodEntries(currentUser.id);
         setMoodHistory(moods);
+
+        // Check if there's an entry for today and pre-fill
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        const todayEntry = moods.find(m => m.date === todayStr);
+        if (todayEntry) {
+          setSelectedMood(todayEntry.mood);
+          setNote(todayEntry.note || "");
+          setEditingId(todayEntry.id || (todayEntry as any)._id);
+        }
       } catch (error) {
         console.error("Failed to fetch mood history:", error);
         setMoodHistory([]);
@@ -83,33 +94,44 @@ const MoodTrackerPage = () => {
 
     setIsSubmitting(true);
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = format(new Date(), "yyyy-MM-dd");
 
     try {
-      // Save mood entry to MongoDB
-      await saveMoodEntry({
-        date: today,
-        mood: selectedMood,
-        note: note,
-        userId: currentUser.id,
-      });
+      if (editingId) {
+        // Update existing entry
+        await updateMoodEntry(editingId, { mood: selectedMood, note: note });
+        toast({
+          title: "Mood updated",
+          description: "Your entry for today has been updated.",
+        });
+      } else {
+        // Save new mood entry
+        await saveMoodEntry({
+          date: today,
+          mood: selectedMood,
+          note: note,
+          userId: currentUser.id,
+        });
+        toast({
+          title: "Mood logged successfully",
+          description: "Your mood has been recorded for today",
+        });
+      }
 
       // Refresh mood history
       const updatedMoods = await getUserMoodEntries(currentUser.id);
+      console.log("Updated mood history:", updatedMoods);
       setMoodHistory(updatedMoods);
 
-      setSelectedMood(null);
-      setNote("");
+      // Update editing ID if we just created a new one
+      const todayEntry = updatedMoods.find(m => m.date === today);
+      if (todayEntry) setEditingId(todayEntry.id || (todayEntry as any)._id);
 
-      toast({
-        title: "Mood logged successfully",
-        description: "Your mood has been recorded for today",
-      });
     } catch (error) {
       console.error("Error saving mood:", error);
       toast({
         title: "Error",
-        description: "Failed to save mood entry. Please try again.",
+        description: `Failed to ${editingId ? 'update' : 'save'} mood entry. Please try again.`,
         variant: "destructive",
       });
     } finally {
@@ -125,14 +147,15 @@ const MoodTrackerPage = () => {
   // Get the last 7 days of mood data for the chart
   const getChartData = () => {
     // Create an array of the last 7 days for the chart
-    const last7Days = [...Array(7)].map((_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      return date.toISOString().split('T')[0];
-    }).reverse();
+    // Create an array for the current week starting from Monday
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekDays = [...Array(7)].map((_, i) => {
+      const date = addDays(monday, i);
+      return format(date, "yyyy-MM-dd");
+    });
 
     // Map the dates to mood entries or use a default value
-    return last7Days.map(date => {
+    return weekDays.map(date => {
       const entry = moodHistory.find(entry => entry.date === date);
       return entry || { date, mood: 0, note: "", userId: currentUser?.id || 'anonymous' };
     });
@@ -173,9 +196,11 @@ const MoodTrackerPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center text-healing-800">
                 <Calendar className="mr-2 h-5 w-5 text-healing-600" />
-                Log Today's Mood
+                {editingId ? "Update Today's Mood" : "Log Today's Mood"}
               </CardTitle>
-              <CardDescription>How are you feeling today?</CardDescription>
+              <CardDescription>
+                {editingId ? "You've already logged for today, but you can change it below." : "How are you feeling today?"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Mood Selection */}
@@ -187,8 +212,8 @@ const MoodTrackerPage = () => {
                       key={mood.value}
                       variant="outline"
                       className={`flex flex-col h-auto py-3 border-healing-200 ${selectedMood === mood.value
-                          ? "border-healing-500 bg-healing-50 ring-1 ring-healing-500"
-                          : ""
+                        ? "border-healing-500 bg-healing-50 ring-1 ring-healing-500"
+                        : ""
                         }`}
                       onClick={() => setSelectedMood(mood.value)}
                     >
@@ -222,12 +247,12 @@ const MoodTrackerPage = () => {
                 {isSubmitting ? (
                   <div className="flex items-center">
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    <span>Saving...</span>
+                    <span>{editingId ? "Updating..." : "Saving..."}</span>
                   </div>
                 ) : (
                   <div className="flex items-center">
                     <Check className="mr-2 h-4 w-4" />
-                    <span>Save Mood Entry</span>
+                    <span>{editingId ? "Update Mood Entry" : "Save Mood Entry"}</span>
                   </div>
                 )}
               </Button>
@@ -280,7 +305,7 @@ const MoodTrackerPage = () => {
                 </div>
               </div>
               <div className="mt-8 text-center text-sm text-gray-500">
-                Viewing the last 7 days
+                Viewing current week (Mon - Sun)
               </div>
             </CardContent>
           </Card>
@@ -300,11 +325,12 @@ const MoodTrackerPage = () => {
               {moodHistory.length === 0 ? (
                 <p className="text-center text-gray-500 py-6">You haven't logged any moods yet. Start tracking your moods to see your history here.</p>
               ) : (
-                moodHistory.map((entry, index) => {
+                moodHistory.map((entry) => {
                   const moodDetail = getMoodDetails(entry.mood);
                   const MoodIcon = moodDetail.icon;
+                  const entryId = entry.id || (entry as any)._id;
                   return (
-                    <div key={index} className="flex border-b border-healing-100 pb-4 last:border-0 last:pb-0">
+                    <div key={entryId} className="flex border-b border-healing-100 pb-4 last:border-0 last:pb-0">
                       <div className={`flex h-10 w-10 items-center justify-center rounded-full mr-4 ${moodDetail.bg}`}>
                         <MoodIcon className={`h-5 w-5 ${moodDetail.color}`} />
                       </div>
