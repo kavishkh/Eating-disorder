@@ -14,39 +14,39 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import AIChatPage from "./pages/AIChatPage";
 import MoodTrackerPage from "./pages/MoodTrackerPage";
-import EducationalHub from "./pages/EducationalHub";
+import LearnPage from "./pages/Learn/LearnPage";
 import CrisisResourcesPage from "./pages/CrisisResourcesPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Educational Hub Subpages
-import UnderstandingED from "./pages/EducationalHub/UnderstandingED";
-import NutritionBasics from "./pages/EducationalHub/NutritionBasics";
-import CopingStrategies from "./pages/EducationalHub/CopingStrategies";
-import BodyImage from "./pages/EducationalHub/BodyImage";
+// Educational Hub Subpages (deprecated)
+// import UnderstandingED from "./pages/EducationalHub/UnderstandingED";
+// import NutritionBasics from "./pages/EducationalHub/NutritionBasics";
+// import CopingStrategies from "./pages/EducationalHub/CopingStrategies";
+// import BodyImage from "./pages/EducationalHub/BodyImage";
 
 // Intelligent home route component
 const HomeRoute = () => {
   const { currentUser, loading } = useAuth();
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
+
   // On first render, check if we're coming from a persisted session
   useEffect(() => {
     // Add a short delay to ensure auth state is properly loaded
     const timer = setTimeout(() => {
       setIsInitialLoad(false);
     }, 500);
-    
+
     return () => clearTimeout(timer);
   }, []);
-  
+
   // If still in initial loading state, show loading spinner
   if (loading || isInitialLoad) {
     return <div className="flex h-screen w-full items-center justify-center">
       <div className="h-12 w-12 animate-spin rounded-full border-4 border-healing-300 border-t-healing-600"></div>
     </div>;
   }
-  
+
   // If user is logged in
   if (currentUser) {
     // Check if they've completed onboarding
@@ -58,7 +58,7 @@ const HomeRoute = () => {
       return <Navigate to="/onboarding" replace />;
     }
   }
-  
+
   // If no user is logged in, show the welcome page
   return <WelcomePage />;
 };
@@ -96,20 +96,14 @@ const App = () => (
                 <MoodTrackerPage />
               </ProtectedRoute>
             } />
-            <Route 
-              path="/learn" 
+            <Route
+              path="/learn"
               element={
                 <ProtectedRoute>
-                  <EducationalHub />
+                  <LearnPage />
                 </ProtectedRoute>
               }
-            >
-              <Route index element={<Navigate to="understanding" replace />} /> 
-              <Route path="understanding" element={<UnderstandingED />} />
-              <Route path="nutrition" element={<NutritionBasics />} />
-              <Route path="coping" element={<CopingStrategies />} />
-              <Route path="body-image" element={<BodyImage />} />
-            </Route>
+            />
             <Route path="/crisis-resources" element={<CrisisResourcesPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

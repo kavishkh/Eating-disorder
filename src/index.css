@@ -237,6 +237,14 @@
     animation: staggered-entrance 0.5s ease forwards;
     animation-delay: calc(var(--index) * 0.1s);
   }
+
+  .text-gradient-healing {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-healing-600 to-healing-400;
+  }
+
+  .bg-gradient-healing {
+    @apply bg-gradient-to-br from-healing-500 to-healing-700;
+  }
 }
 
 @keyframes card-appear {
