@@ -24,17 +24,17 @@ const NutritionBasics: React.FC = () => {
     <div className="p-4">
       <h2 className="text-2xl font-semibold mb-4">Nutrition Basics for Recovery</h2>
       <p className="mb-6">Information about balanced eating, meal planning, and nutritional needs during recovery.</p>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {videos.map((video, index) => (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="border rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow cursor-pointer"
             onClick={() => window.open(video.url, "_blank")}
           >
             <div className="relative pt-[56.25%]"> {/* 16:9 aspect ratio */}
-              <img 
-                src={video.thumbnail} 
+              <img
+                src={video.thumbnail}
                 alt={video.title}
                 className="absolute top-0 left-0 w-full h-full object-cover"
               />

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import AppLayout from "../../components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -27,6 +27,8 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 const LearnPage = () => {
+    const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+
     return (
         <AppLayout>
             <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
@@ -519,28 +521,111 @@ const LearnPage = () => {
                         </TabsContent>
 
                         <TabsContent value="media" className="space-y-8">
+                            <header className="space-y-2">
+                                <h2 className="text-3xl font-bold text-healing-900 font-outfit">Media Library</h2>
+                                <p className="text-muted-foreground">A curated collection of videos to help you understand, ground, and heal.</p>
+                            </header>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {[
-                                    { title: "Understanding Tension", type: "Audio Guide", duration: "8 min", category: "Mental Health" },
-                                    { title: "Gently Facing Food", type: "Video Lesson", duration: "12 min", category: "Recovery" },
-                                    { title: "Grounding Practice", type: "Interactive", duration: "5 min", category: "Coping" },
-                                    { title: "Why Urges Arise", type: "Audio Lesson", duration: "10 min", category: "Biology" },
-                                    { title: "Kindness Body Scan", type: "Audio Guide", duration: "15 min", category: "Meditation" },
-                                    { title: "Letting Go of Perfection", type: "Video Talk", duration: "7 min", category: "Thoughts" }
+                                    { title: "5-Minute Meditation Anywhere", id: "inpok4MKVLM", category: "Meditation", duration: "5 min" },
+                                    { title: "10-Minute Anxiety Relief", id: "O-6f5wQXSu8", category: "Meditation", duration: "10 min" },
+                                    { title: "Daily Calm Mindfulness", id: "syx3a1_LeFo", category: "Mindfulness", duration: "10 min" },
+                                    { title: "Mindful Eating Guide", id: "gcIxWIDuKZQ", category: "Mindfulness", duration: "12 min" },
+                                    { title: "Meditation for ED Recovery", id: "-UVIdPUSh-M", category: "Recovery", duration: "7 min" },
+                                    { title: "Recovery Path Explained", id: "tEz2a97MASQ", category: "Recovery", duration: "15 min" },
+                                    { title: "What is an Eating Disorder?", id: "3Bax8ijH038", category: "Understanding", duration: "8 min" },
+                                    { title: "Anorexia Nervosa Explained", id: "eMVyZ6Ax-74", category: "Understanding", duration: "10 min" },
+                                    { title: "Bulimia Nervosa Overview", id: "Kt1p2gLug60", category: "Understanding", duration: "10 min" },
+                                    { title: "Binge Eating Overview", id: "YPgRc0uzx5E", category: "Understanding", duration: "12 min" },
+                                    { title: "Signs & Symptoms", id: "MsSXh1BxLjE", category: "Understanding", duration: "9 min" },
+                                    { title: "Coping with Anxiety", id: "Cv2DJ9riXb4", category: "Coping", duration: "6 min" },
+                                    { title: "Stress Relief Techniques", id: "PcKyBMGYWO4", category: "Coping", duration: "8 min" },
+                                    { title: "Emotional Regulation", id: "cPoqxmaEhL4", category: "Coping", duration: "10 min" },
+                                    { title: "Difficult Emotions", id: "aexBCHZxjvw", category: "Coping", duration: "7 min" },
+                                    { title: "Grounding for Triggers", id: "HjF1AeTeN20", category: "Coping", duration: "5 min" }
                                 ].map((media, i) => (
-                                    <Card key={i} className="group cursor-pointer hover:border-healing-500 transition-all">
-                                        <div className="aspect-video bg-healing-100 rounded-t-xl flex items-center justify-center relative overflow-hidden">
-                                            <PlayCircle className="h-12 w-12 text-healing-600 z-10 opacity-80 group-hover:scale-125 transition-transform" />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-healing-900/20 to-transparent" />
+                                    <Card key={i} id={`video-${media.id}`} className={`group overflow-hidden transition-all duration-500 shadow-sm hover:shadow-md ${playingVideoId === media.id ? 'border-healing-500 ring-2 ring-healing-200' : 'border-healing-100'}`}>
+                                        <div className="aspect-video bg-healing-100 relative overflow-hidden">
+                                            {playingVideoId === media.id ? (
+                                                <div className="w-full h-full relative">
+                                                    <iframe
+                                                        className="w-full h-full"
+                                                        src={`https://www.youtube.com/embed/${media.id}?autoplay=1&rel=0`}
+                                                        title={media.title}
+                                                        frameBorder="0"
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                        allowFullScreen
+                                                    ></iframe>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPlayingVideoId(null);
+                                                        }}
+                                                        className="absolute -top-1 -right-1 bg-white p-1 rounded-full shadow-lg text-healing-600 hover:text-healing-800 border border-healing-100 transition-colors z-20"
+                                                        title="Close Video"
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="w-full h-full cursor-pointer"
+                                                    onClick={() => setPlayingVideoId(media.id)}
+                                                >
+                                                    <img
+                                                        src={`https://img.youtube.com/vi/${media.id}/mqdefault.jpg`}
+                                                        alt={media.title}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                        <div className="bg-white/90 p-3 rounded-full shadow-lg transform group-hover:scale-110 transition-transform">
+                                                            <PlayCircle className="h-8 w-8 text-healing-600" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+                                                        {media.duration}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <CardHeader className="p-4">
-                                            <div className="flex justify-between items-start">
-                                                <Badge variant="outline" className="text-[10px] uppercase">{media.category}</Badge>
-                                                <span className="text-[10px] text-muted-foreground">{media.duration}</span>
+                                        <CardHeader className="p-4 space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <Badge variant="secondary" className="text-[9px] uppercase tracking-wider bg-healing-50 text-healing-700 border-none">
+                                                    {media.category}
+                                                </Badge>
                                             </div>
-                                            <CardTitle className="text-lg mt-2">{media.title}</CardTitle>
-                                            <CardDescription>{media.type}</CardDescription>
+                                            <CardTitle className={`text-base leading-tight transition-colors ${playingVideoId === media.id ? 'text-healing-700 font-bold' : 'group-hover:text-healing-700'}`}>{media.title}</CardTitle>
                                         </CardHeader>
+                                        <CardFooter className="px-4 pb-4 pt-0">
+                                            {playingVideoId === media.id ? (
+                                                <Button
+                                                    variant="secondary"
+                                                    className="w-full h-8 text-xs bg-healing-50 text-healing-700 hover:bg-healing-100 justify-between p-0 px-3 font-semibold"
+                                                    onClick={() => setPlayingVideoId(null)}
+                                                >
+                                                    Close Player <X size={14} />
+                                                </Button>
+                                            ) : (
+                                                <div className="flex w-full gap-2">
+                                                    <Button
+                                                        variant="default"
+                                                        className="flex-1 h-8 text-xs bg-healing-600 hover:bg-healing-700 text-white justify-between p-0 px-3"
+                                                        onClick={() => setPlayingVideoId(media.id)}
+                                                    >
+                                                        Watch Here <PlayCircle size={14} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-healing-700 hover:bg-healing-50"
+                                                        onClick={() => window.open(`https://www.youtube.com/watch?v=${media.id}`, "_blank")}
+                                                        title="Open in YouTube"
+                                                    >
+                                                        <ArrowRight size={14} />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </CardFooter>
                                     </Card>
                                 ))}
                             </div>

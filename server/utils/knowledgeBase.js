@@ -49,6 +49,11 @@ export const videoLibrary = {
             title: "Gentle Steps Toward Eating Without Fear",
             videoId: "aXItOY0sLRY",
             platform: "youtube"
+        },
+        {
+            title: "Mindful Eating Guided Meditation",
+            videoId: "gcIxWIDuKZQ",
+            platform: "youtube"
         }
     ],
     calm: [
@@ -56,12 +61,27 @@ export const videoLibrary = {
             title: "5 Minute Breathing to Calm Anger",
             videoId: "inpok4MKVLM",
             platform: "youtube"
+        },
+        {
+            title: "10-Minute Meditation for Anxiety & Stress Relief",
+            videoId: "O-6f5wQXSu8",
+            platform: "youtube"
+        },
+        {
+            title: "Daily Calm – 10 Minute Mindfulness Meditation",
+            videoId: "syx3a1_LeFo",
+            platform: "youtube"
         }
     ],
     motivation: [
         {
             title: "Recovery Is Possible",
             videoId: "vD2GJ0Hn1eQ",
+            platform: "youtube"
+        },
+        {
+            title: "Meditation for Eating Disorder Recovery",
+            videoId: "-UVIdPUSh-M",
             platform: "youtube"
         }
     ]

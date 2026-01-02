@@ -20,8 +20,8 @@ export function detectIntent(message) {
     if (text.includes("how") || text.includes("what") || text.includes("tip") || text.includes("advice") || text.includes("help me with")) return "search";
 
     // Check if user is answering a video clarification request
-    if (text.includes("calm") || text.includes("breathing") || text.includes("anger") || text.includes("anxiety")) return "video_answer_calm";
-    if (text.includes("food") || text.includes("eat") || text.includes("struggle")) return "video_answer_food";
+    if (text.includes("calm") || text.includes("breathing") || text.includes("anger") || text.includes("anxiety") || text.includes("meditation") || text.includes("mindful")) return "video_answer_calm";
+    if (text.includes("food") || text.includes("eat") || text.includes("struggle") || text.includes("eating")) return "video_answer_food";
     if (text.includes("motivation") || text.includes("recovery")) return "video_answer_motivation";
 
     // Prevent "not so good" from triggering gratitude intent
@@ -230,7 +230,7 @@ export function generateReply(message, userId = 'default') {
             context.lastQuestionAsked = "video_clarification";
             return {
                 type: "text",
-                text: "I can suggest better videos if I understand a bit more.\n\nAre you looking for videos to:\n1) Calm down / reduce anger or anxiety\n2) Help with food-related struggles\n3) Motivation for recovery\n4) Something else",
+                text: "I'd love to find the right video for you. Are you looking for a short calming meditation, something to help with anxiety, or a video focused specifically on eating-related struggles?",
                 emotion,
                 level
             };
