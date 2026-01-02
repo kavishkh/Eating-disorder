@@ -10,6 +10,8 @@ export interface User {
   lastActivity?: string;
   moodEntries?: number;
   progressMetrics?: ProgressMetrics;
+  completedModules?: string[];
+  progressLevel?: number;
 }
 
 export interface ProgressMetrics {

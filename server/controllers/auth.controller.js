@@ -132,10 +132,48 @@ export const me = async (req, res) => {
         res.json({
             id: req.user._id,
             name: req.user.name,
-            email: req.user.email
+            email: req.user.email,
+            completedModules: req.user.completedModules || [],
+            progressLevel: req.user.progressLevel || 0
         });
     } catch (err) {
         console.error("ME ERROR:", err);
+        res.status(500).json({ message: "Server error: " + err.message });
+    }
+};
+
+/* UPDATE PROGRESS */
+export const updateProgress = async (req, res) => {
+    try {
+        const { moduleId } = req.body;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.completedModules.includes(moduleId)) {
+            return res.status(200).json({
+                message: "Already counted",
+                completedModules: user.completedModules,
+                progressLevel: user.progressLevel
+            });
+        }
+
+        user.completedModules.push(moduleId);
+        user.progressLevel += 1;
+
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            completedModules: user.completedModules,
+            progressLevel: user.progressLevel
+        });
+    } catch (err) {
+        console.error("UPDATE PROGRESS ERROR:", err);
         res.status(500).json({ message: "Server error: " + err.message });
     }
 };

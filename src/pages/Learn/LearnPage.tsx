@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppLayout from "../../components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -25,9 +25,115 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { authAPI } from "@/utils/api";
+import { copingTools } from "@/data/copingTools";
 
 const LearnPage = () => {
+    const { currentUser, updateUserProfile } = useAuth();
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [currentModuleId, setCurrentModuleId] = useState<string | null>(null);
+    const [currentModuleTitle, setCurrentModuleTitle] = useState<string>("");
+
+    const [activePractice, setActivePractice] = useState<string | null>(null);
+    const [selectedSense, setSelectedSense] = useState<string | null>(null);
+    const [audioToPlay, setAudioToPlay] = useState<string | null>(null);
+
+    // Urge Surfing Timer State
+    const [isTimerOpen, setIsTimerOpen] = useState(false);
+    const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
+    const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+    const totalModules = 10; // Increased count to include Urge Surfing
+    const completedModules = currentUser?.completedModules || [];
+    const progressPercent = Math.round((completedModules.length / totalModules) * 100);
+
+    // Timer Logic
+    useEffect(() => {
+        if (!isTimerRunning) return;
+
+        if (timeLeft === 0) {
+            setIsTimerRunning(false);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setTimeLeft(prev => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isTimerRunning, timeLeft]);
+
+    const startUrgeSurfing = () => {
+        setIsTimerOpen(true);
+        setTimeLeft(300);
+        setIsTimerRunning(true);
+        setActivePractice(null); // Close other practices if open
+    };
+
+    const startPractice = (type: string) => {
+        if (type === "urge") {
+            startUrgeSurfing();
+        } else {
+            setActivePractice(type);
+            setSelectedSense(null); // Reset sense selection when starting a practice
+        }
+    };
+
+    const playGuide = (src: string) => {
+        setAudioToPlay(src === audioToPlay ? null : src);
+    };
+
+    const handleModuleComplete = (moduleId: string, title: string) => {
+        if (completedModules.includes(moduleId)) {
+            toast.info("You've already explored this module. Feel free to review it again!");
+            return;
+        }
+        setCurrentModuleId(moduleId);
+        setCurrentModuleTitle(title);
+        setShowFeedback(true);
+    };
+
+    const handleFeedback = async (satisfied: boolean) => {
+        setShowFeedback(false);
+
+        if (!satisfied || !currentModuleId) {
+            toast.info("No problem. Take your time, only take what helps you.");
+            return;
+        }
+
+        await confirmHelpful(currentModuleId);
+    };
+
+    const isCompleted = (moduleId: string) => completedModules.includes(moduleId);
+
+    const confirmHelpful = async (moduleId: string) => {
+        if (completedModules.includes(moduleId)) return;
+
+        try {
+            const data = await authAPI.updateProgress(moduleId);
+            if (data.success || data.message === "Already counted") {
+                await updateUserProfile({
+                    completedModules: data.completedModules,
+                    progressLevel: data.progressLevel
+                });
+                toast.success(`Progress updated! You've found something helpful.`, {
+                    description: "“Small consistency over perfection.”"
+                });
+            }
+        } catch (error) {
+            console.error("Failed to update progress:", error);
+            toast.error("Couldn't save progress. Are you online?");
+        }
+    };
+
+    const getLevelName = (level: number) => {
+        if (level < 3) return "Level 1: Explorer";
+        if (level < 7) return "Level 2: Navigator";
+        if (level < 12) return "Level 3: Guardian";
+        return "Level 4: Guide";
+    };
 
     return (
         <AppLayout>
@@ -73,9 +179,7 @@ const LearnPage = () => {
                             <TabsTrigger value="media" className="rounded-lg px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-healing-700 data-[state=active]:shadow-sm">
                                 <PlayCircle className="mr-2 h-4 w-4" /> Media Library
                             </TabsTrigger>
-                            <TabsTrigger value="crisis" className="rounded-lg px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm">
-                                <AlertCircle className="mr-2 h-4 w-4" /> Crisis & Help
-                            </TabsTrigger>
+
                         </TabsList>
                         <ScrollBar orientation="horizontal" />
                     </ScrollArea>
@@ -154,6 +258,21 @@ const LearnPage = () => {
                                     <p className="text-xs text-center text-muted-foreground italic">
                                         Feel free to skip any section that feels like "too much" today. Your peace of mind comes first.
                                     </p>
+                                    {!isCompleted('intro-foundation') && (
+                                        <Button
+                                            variant="outline"
+                                            className="w-full border-healing-200 text-healing-600 hover:bg-healing-50"
+                                            onClick={() => handleModuleComplete('intro-foundation', 'Welcome Foundation')}
+                                        >
+                                            Mark this introduction as helpful
+                                        </Button>
+                                    )}
+                                    {isCompleted('intro-foundation') && (
+                                        <div className="flex items-center justify-center space-x-2 text-healing-600 font-medium bg-healing-50 p-3 rounded-xl border border-healing-100">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            <span className="text-sm">Found this helpful</span>
+                                        </div>
+                                    )}
                                 </div>
                             </section>
                         </TabsContent>
@@ -215,6 +334,23 @@ const LearnPage = () => {
                                                     </li>
                                                 ))}
                                             </ul>
+                                            <div className="mt-6 pt-4 border-t border-gray-100">
+                                                {isCompleted(`understanding-${i}`) ? (
+                                                    <div className="flex items-center space-x-2 text-healing-600 text-xs font-semibold">
+                                                        <CheckCircle2 className="h-3 w-3" />
+                                                        <span>Helpful tool added</span>
+                                                    </div>
+                                                ) : (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 text-[11px] text-healing-600 hover:text-healing-700 hover:bg-healing-50 p-0"
+                                                        onClick={() => handleModuleComplete(`understanding-${i}`, item.title)}
+                                                    >
+                                                        Did this feel helpful for you?
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 ))}
@@ -273,6 +409,22 @@ const LearnPage = () => {
                                                 </div>
                                             ))}
                                         </div>
+                                        <div className="mt-6">
+                                            {isCompleted('emotions-connections') ? (
+                                                <div className="flex items-center justify-center space-x-2 text-rose-600 font-medium bg-rose-50 p-3 rounded-xl">
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                    <span className="text-sm">Added to your toolkit</span>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                                                    onClick={() => handleModuleComplete('emotions-connections', 'Mind Connections')}
+                                                >
+                                                    Did this provide clarity?
+                                                </Button>
+                                            )}
+                                        </div>
                                     </CardContent>
                                 </Card>
 
@@ -299,7 +451,7 @@ const LearnPage = () => {
                                         <CardFooter>
                                             <Button
                                                 className="w-full bg-healing-600 hover:bg-healing-700"
-                                                onClick={() => toast.success("Urge session started. Take a deep breath.")}
+                                                onClick={startUrgeSurfing}
                                             >
                                                 Open Urge Surf Timer
                                             </Button>
@@ -316,67 +468,155 @@ const LearnPage = () => {
                             </header>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {[
-                                    {
-                                        title: "5-4-3-2-1 Grounding",
-                                        subtitle: "Connect with the present moment",
-                                        description: "5 things you see, 4 you can touch, 3 you hear, 2 you smell, 1 you can taste.",
-                                        icon: Wind,
-                                        color: "indigo"
-                                    },
-                                    {
-                                        title: "Box Breathing",
-                                        subtitle: "Regulate your nervous system",
-                                        description: "Inhale for 4, hold for 4, exhale for 4, hold for 4. Repeat 3 times.",
-                                        icon: Shield,
-                                        color: "teal"
-                                    },
-                                    {
-                                        title: "Urge Surfing",
-                                        subtitle: "Ride the wave of an urge",
-                                        description: "Visualize the urge as a wave. It rises, peaks, and eventually must fall.",
-                                        icon: Zap,
-                                        color: "amber"
-                                    },
-                                    {
-                                        title: "Self-Soothing",
-                                        subtitle: "Nurture your senses",
-                                        description: "A soft blanket, a warm tea, or your favorite scent can calm the amygdala.",
-                                        icon: Heart,
-                                        color: "rose"
-                                    }
-                                ].map((tool, i) => (
-                                    <Card key={i} className="group hover:shadow-xl transition-all duration-300 border-healing-100">
-                                        <CardHeader className="flex flex-row items-start space-x-4">
-                                            <div className={`bg-${tool.color}-100 p-4 rounded-2xl group-hover:scale-110 transition-transform`}>
-                                                <tool.icon className={`h-6 w-6 text-${tool.color}-600`} />
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-xl">{tool.title}</CardTitle>
-                                                <CardDescription>{tool.subtitle}</CardDescription>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <p className="text-gray-700 leading-relaxed">{tool.description}</p>
-                                        </CardContent>
-                                        <CardFooter className="flex justify-between items-center text-sm font-medium">
-                                            <Button
-                                                variant="ghost"
-                                                className="text-healing-600 hover:text-healing-700 hover:bg-healing-50 p-0 h-auto"
-                                                onClick={() => toast.info(`Starting ${tool.title} exercise...`)}
-                                            >
-                                                Practice now
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                className="text-muted-foreground p-0 h-auto"
-                                                onClick={() => toast.info(`Loading audio guide for ${tool.title}...`)}
-                                            >
-                                                Listen to guide
-                                            </Button>
-                                        </CardFooter>
-                                    </Card>
-                                ))}
+                                {copingTools.map((tool) => {
+                                    const ToolIcon = { Wind, Shield, Zap, Heart }[tool.icon] || Wind;
+                                    const colorMap: Record<string, string> = {
+                                        'grounding-54321': 'indigo',
+                                        'box-breathing': 'teal',
+                                        'urge-surfing': 'amber',
+                                        'self-soothing': 'rose'
+                                    };
+                                    const color = colorMap[tool.id] || 'healing';
+
+                                    return (
+                                        <Card key={tool.id} id={`tool-${tool.id}`} className="group hover:shadow-xl transition-all duration-300 border-healing-100 flex flex-col">
+                                            <CardHeader className="flex flex-row items-start space-x-4">
+                                                <div className={`bg-${color}-100 p-4 rounded-2xl group-hover:scale-110 transition-transform`}>
+                                                    <ToolIcon className={`h-6 w-6 text-${color}-600`} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <CardTitle className="text-xl">{tool.title}</CardTitle>
+                                                            <CardDescription>{tool.description}</CardDescription>
+                                                        </div>
+                                                        {isCompleted(tool.id) && (
+                                                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100">
+                                                                <CheckCircle2 className="h-3 w-3 mr-1" /> Helpful
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="flex-1">
+                                                {/* Practice UI - Embedded inside card or as a separate section below */}
+                                                {activePractice === tool.practiceType && (
+                                                    <div className="mt-2 p-4 bg-healing-50 rounded-xl border border-healing-100 animate-in fade-in zoom-in-95 duration-300 relative">
+                                                        <button
+                                                            onClick={() => setActivePractice(null)}
+                                                            className="absolute top-2 right-2 text-healing-400 hover:text-healing-600"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+
+                                                        {activePractice === "grounding" && (
+                                                            <div className="space-y-3">
+                                                                <h4 className="font-bold text-healing-900 border-b border-healing-200 pb-1">5-4-3-2-1 Grounding</h4>
+                                                                <p className="text-sm text-gray-700">Look around and name:</p>
+                                                                <ul className="text-sm space-y-1 text-gray-600 pl-2">
+                                                                    <li>• 5 things you can see</li>
+                                                                    <li>• 4 things you can touch</li>
+                                                                    <li>• 3 things you hear</li>
+                                                                    <li>• 2 things you smell</li>
+                                                                    <li>• 1 thing you taste</li>
+                                                                </ul>
+                                                                <p className="text-[10px] text-healing-600 font-medium italic">You don’t need to rush.</p>
+                                                            </div>
+                                                        )}
+
+                                                        {activePractice === "breathing" && (
+                                                            <div className="space-y-3">
+                                                                <h4 className="font-bold text-healing-900 border-b border-healing-200 pb-1">Box Breathing</h4>
+                                                                <div className="bg-white/50 p-3 rounded-lg text-center space-y-1">
+                                                                    <p className="text-lg font-bold text-healing-700">Inhale 4 • Hold 4</p>
+                                                                    <p className="text-lg font-bold text-healing-700">Exhale 4 • Hold 4</p>
+                                                                </div>
+                                                                <p className="text-sm text-gray-700 text-center italic">Repeat slowly 3 times.</p>
+                                                            </div>
+                                                        )}
+
+                                                        {activePractice === "soothing" && (
+                                                            <div className="space-y-3">
+                                                                <h4 className="font-bold text-healing-900 border-b border-healing-200 pb-1">Self-Soothing</h4>
+                                                                <p className="text-sm text-gray-700">Choose one sense to focus on:</p>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {['Warmth', 'Scent', 'Texture', 'Sound'].map(s => (
+                                                                        <Badge
+                                                                            key={s}
+                                                                            variant={selectedSense === s ? "default" : "outline"}
+                                                                            className={`cursor-pointer transition-all ${selectedSense === s ? 'bg-rose-500 text-white border-rose-500' : 'bg-white hover:bg-rose-50 hover:border-rose-200'}`}
+                                                                            onClick={() => setSelectedSense(s)}
+                                                                        >
+                                                                            {s}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </div>
+                                                                {selectedSense ? (
+                                                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-500">
+                                                                        <p className="text-sm text-gray-800 font-medium">Focusing on {selectedSense.toLowerCase()}...</p>
+                                                                        <p className="text-xs text-gray-600 leading-relaxed italic">
+                                                                            {selectedSense === 'Warmth' && "Notice the temperature of your tea, a blanket, or your own hands."}
+                                                                            {selectedSense === 'Scent' && "Find a calming smell nearby—perhaps a candle, lotion, or fresh air."}
+                                                                            {selectedSense === 'Texture' && "Feel the fabric of your clothes or the surface of a nearby object."}
+                                                                            {selectedSense === 'Sound' && "Listen closely to the hum of the room or distant sounds outside."}
+                                                                        </p>
+                                                                        <p className="text-[11px] text-rose-600 font-bold">Stay with this sensation for a minute. Let it anchor you.</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-sm text-gray-600 leading-relaxed">Select a sense to begin the practice.</p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {audioToPlay === tool.audio && (
+                                                    <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 animate-in slide-in-from-top-2 duration-300">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Audio Guide</span>
+                                                            <button onClick={() => setAudioToPlay(null)}><X size={14} className="text-slate-400" /></button>
+                                                        </div>
+                                                        <audio
+                                                            controls
+                                                            src={tool.audio}
+                                                            className="w-full h-8"
+                                                            autoPlay={false}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                            <CardFooter className="flex flex-col space-y-3 pt-4 border-t border-gray-50 mt-auto">
+                                                <div className="flex justify-between items-center w-full text-sm font-medium">
+                                                    <div className="flex space-x-4">
+                                                        <Button
+                                                            variant="ghost"
+                                                            className="text-healing-600 hover:text-healing-700 hover:bg-healing-50 p-0 h-auto"
+                                                            onClick={() => startPractice(tool.practiceType)}
+                                                        >
+                                                            Practice now
+                                                        </Button>
+                                                        {!isCompleted(tool.id) && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                className="text-muted-foreground hover:text-healing-600 p-0 h-auto"
+                                                                onClick={() => handleModuleComplete(tool.id, tool.title)}
+                                                            >
+                                                                Mark as helpful
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        className={`p-0 h-auto ${audioToPlay === tool.audio ? 'text-healing-600 font-bold' : 'text-muted-foreground'}`}
+                                                        onClick={() => playGuide(tool.audio)}
+                                                    >
+                                                        {audioToPlay === tool.audio ? 'Playing guide...' : 'Listen to guide'}
+                                                    </Button>
+                                                </div>
+                                            </CardFooter>
+                                        </Card>
+                                    );
+                                })}
                             </div>
 
                             <div className="bg-slate-900 text-white rounded-3xl p-8 text-center flex flex-col items-center justify-center space-y-4">
@@ -428,7 +668,26 @@ const LearnPage = () => {
                                             {item.title}
                                         </AccordionTrigger>
                                         <AccordionContent className="pb-6 text-gray-700 text-base leading-relaxed">
-                                            {item.content}
+                                            <div className="space-y-4">
+                                                {item.content}
+                                                <div className="pt-2">
+                                                    {isCompleted(`food-${i}`) ? (
+                                                        <div className="flex items-center space-x-2 text-healing-600 text-xs font-semibold">
+                                                            <CheckCircle2 className="h-3 w-3" />
+                                                            <span>Reflected on this</span>
+                                                        </div>
+                                                    ) : (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 text-[11px] text-healing-600 hover:text-healing-700 hover:bg-healing-50 p-0"
+                                                            onClick={() => handleModuleComplete(`food-${i}`, item.title)}
+                                                        >
+                                                            Did this provide a new perspective?
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}
@@ -460,6 +719,7 @@ const LearnPage = () => {
                                     </ul>
                                 </div>
                             </div>
+
                             <div className="text-center pt-4">
                                 <Button variant="ghost" className="text-healing-600 italic" onClick={() => (window.location.href = '/chat')}>
                                     Want to talk through a difficult food moment? Ask the AI coach →
@@ -494,8 +754,25 @@ const LearnPage = () => {
                                         color: "bg-purple-50"
                                     }
                                 ].map((item, i) => (
-                                    <div key={i} className={`${item.color} p-8 rounded-3xl border border-white/50 shadow-sm space-y-4`}>
-                                        <Badge className="bg-white text-gray-900 border-none shadow-sm">{item.type}</Badge>
+                                    <div key={i} className={`${item.color} p-8 rounded-3xl border border-white/50 shadow-sm space-y-4 relative group`}>
+                                        <div className="flex justify-between items-center">
+                                            <Badge className="bg-white text-gray-900 border-none shadow-sm">{item.type}</Badge>
+                                            {isCompleted(`thoughts-${i}`) ? (
+                                                <div className="flex items-center space-x-1 text-healing-700 text-xs font-bold bg-white/60 px-2 py-1 rounded-lg">
+                                                    <CheckCircle2 className="h-3 w-3" />
+                                                    <span>Reframing expert</span>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 text-[10px] text-healing-600 hover:bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => handleModuleComplete(`thoughts-${i}`, item.type)}
+                                                >
+                                                    Was this reframe helpful?
+                                                </Button>
+                                            )}
+                                        </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div className="space-y-2">
                                                 <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">The ED Thought:</p>
@@ -625,70 +902,28 @@ const LearnPage = () => {
                                                     </Button>
                                                 </div>
                                             )}
+                                            {!isCompleted(`video-${media.id}`) ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="w-full mt-2 h-7 text-[10px] text-healing-600 hover:bg-healing-50 border border-dashed border-healing-100"
+                                                    onClick={() => handleModuleComplete(`video-${media.id}`, media.title)}
+                                                >
+                                                    Found this video helpful?
+                                                </Button>
+                                            ) : (
+                                                <div className="w-full mt-2 flex items-center justify-center space-x-1 text-healing-600 text-[10px] font-bold bg-healing-50 py-1 rounded">
+                                                    <CheckCircle2 className="h-3 w-3" />
+                                                    <span>Added to progress</span>
+                                                </div>
+                                            )}
                                         </CardFooter>
                                     </Card>
                                 ))}
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="crisis" className="space-y-8">
-                            <Card className="border-red-100 bg-red-50/50">
-                                <CardHeader className="text-center">
-                                    <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-4">
-                                        <AlertCircle className="h-8 w-8 text-red-600" />
-                                    </div>
-                                    <CardTitle className="text-3xl text-red-900">If things feel heavy...</CardTitle>
-                                    <CardDescription className="text-red-800 text-lg">You never have to carry this alone. Please reach out to someone who can hold space for you.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-8">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="bg-white p-6 rounded-2xl border border-red-100 shadow-sm space-y-4">
-                                            <h4 className="font-bold text-gray-900 text-xl">India-specific Helplines</h4>
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                                                    <div>
-                                                        <p className="font-bold text-red-900">Vandrevala Foundation</p>
-                                                        <p className="text-sm text-red-700">24/7 Support</p>
-                                                    </div>
-                                                    <Button variant="outline" className="text-red-700 border-red-200 hover:bg-red-100">9999 666 555</Button>
-                                                </div>
-                                                <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                                                    <div>
-                                                        <p className="font-bold text-red-900">iCall (TISS)</p>
-                                                        <p className="text-sm text-red-700">Mon-Sat, 8am-10pm</p>
-                                                    </div>
-                                                    <Button variant="outline" className="text-red-700 border-red-200 hover:bg-red-100">9152987821</Button>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        <div className="bg-white p-6 rounded-2xl border border-red-100 shadow-sm space-y-4">
-                                            <h4 className="font-bold text-gray-900 text-xl">When to get extra help?</h4>
-                                            <ul className="space-y-3">
-                                                {[
-                                                    "Frequent thoughts of self-harm",
-                                                    "Dizziness, fainting or heart palpitations",
-                                                    "Unable to stop behaviors on your own",
-                                                    "Feeling completely hopeless or 'stuck'",
-                                                    "Rapid weight changes or severe fatigue"
-                                                ].map((sign, i) => (
-                                                    <li key={i} className="flex items-start space-x-2 text-sm text-gray-700">
-                                                        <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-                                                        <span>{sign}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-center p-8 bg-white rounded-2xl border border-red-100 shadow-sm">
-                                        <h4 className="font-bold text-xl mb-2">Need more long-term support?</h4>
-                                        <p className="text-muted-foreground mb-6">We have a curated list of specialized therapist and treatment centers.</p>
-                                        <Button className="bg-red-600 hover:bg-red-700 h-12 px-8 rounded-full">Explore Full Resources</Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
                     </div>
                 </Tabs>
 
@@ -700,34 +935,186 @@ const LearnPage = () => {
                                 <CardTitle className="text-xl">Your Progress</CardTitle>
                                 <CardDescription>Small wins built over time</CardDescription>
                             </div>
-                            <Badge className="bg-healing-600">Level 1: Explorer</Badge>
+                            <Badge className="bg-healing-600">{getLevelName(currentUser?.progressLevel || 0)}</Badge>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span className="font-medium">Modules Completed</span>
-                                    <span className="text-muted-foreground">3 / 8</span>
+                                    <span className="text-muted-foreground">{completedModules.length} / {totalModules}</span>
                                 </div>
-                                <Progress value={37.5} className="h-2" />
+                                <Progress value={progressPercent} className="h-2" />
                             </div>
 
+                            <p className="text-xs text-muted-foreground italic text-center">
+                                “Progress looks different for everyone. You don’t need to complete everything. Your pace is the perfect pace.”
+                            </p>
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                                <div className="bg-white p-4 rounded-xl border border-healing-100 flex items-center space-x-3">
-                                    <div className="bg-emerald-100 p-2 rounded-lg"><CheckCircle2 className="h-4 w-4 text-emerald-600" /></div>
-                                    <span className="text-sm font-medium">Read Foundation</span>
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-healing-100 flex items-center space-x-3">
-                                    <div className="bg-emerald-100 p-2 rounded-lg"><CheckCircle2 className="h-4 w-4 text-emerald-600" /></div>
-                                    <span className="text-sm font-medium">Tested 5-4-3-2-1</span>
-                                </div>
-                                <div className="bg-white/50 p-4 rounded-xl border border-dashed border-gray-300 flex items-center space-x-3 grayscale opacity-60">
-                                    <div className="bg-gray-100 p-2 rounded-lg"><Star className="h-4 w-4 text-gray-400" /></div>
-                                    <span className="text-sm font-medium text-gray-400">Complete CBT Module</span>
-                                </div>
+                                {completedModules.length > 0 ? (
+                                    completedModules.slice(0, 6).map((moduleId, idx) => (
+                                        <div key={idx} className="bg-white p-4 rounded-xl border border-healing-100 flex items-center space-x-3 animate-in slide-in-from-bottom-2 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
+                                            <div className="bg-emerald-100 p-2 rounded-lg"><CheckCircle2 className="h-4 w-4 text-emerald-600" /></div>
+                                            <span className="text-sm font-medium truncate">{moduleId.replace(/-/g, ' ')}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full py-8 text-center border-2 border-dashed border-gray-200 rounded-2xl">
+                                        <p className="text-muted-foreground">Start exploring modules to see your progress here.</p>
+                                    </div>
+                                )}
+                                {completedModules.length < totalModules && completedModules.length > 0 && (
+                                    <div className="bg-white/50 p-4 rounded-xl border border-dashed border-gray-300 flex items-center space-x-3 grayscale opacity-60">
+                                        <div className="bg-gray-100 p-2 rounded-lg"><Star className="h-4 w-4 text-gray-400" /></div>
+                                        <span className="text-sm font-medium text-gray-400">Keep exploring...</span>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
                 </section>
+
+                {/* Feedback Modal Overlay */}
+                {
+                    showFeedback && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-healing-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                            <Card className="w-full max-w-md border-none shadow-2xl animate-in zoom-in-95 duration-300">
+                                <CardHeader className="text-center space-y-2">
+                                    <div className="mx-auto bg-healing-100 p-3 rounded-2xl w-fit">
+                                        <Heart className="h-8 w-8 text-healing-600 fill-healing-600" />
+                                    </div>
+                                    <CardTitle className="text-2xl font-bold text-healing-900">Module: {currentModuleTitle}</CardTitle>
+                                    <CardDescription className="text-healing-600 italic">“You’re doing great just by being here.”</CardDescription>
+                                </CardHeader>
+                                <CardContent className="text-center py-6">
+                                    <p className="text-lg text-gray-700 leading-relaxed">
+                                        Did this feel helpful for you?
+                                    </p>
+                                </CardContent>
+                                <CardFooter className="flex flex-col space-y-3">
+                                    <Button
+                                        className="w-full bg-healing-600 hover:bg-healing-700 text-white h-12 text-lg font-semibold"
+                                        onClick={() => handleFeedback(true)}
+                                    >
+                                        Yes, it helped <CheckCircle2 className="ml-2 h-5 w-5" />
+                                    </Button>
+                                    <div className="grid grid-cols-2 gap-3 w-full">
+                                        <Button
+                                            variant="ghost"
+                                            className="text-muted-foreground hover:text-healing-700 hover:bg-healing-50"
+                                            onClick={() => handleFeedback(false)}
+                                        >
+                                            Not really
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            className="text-muted-foreground hover:text-healing-700 hover:bg-healing-50"
+                                            onClick={() => setShowFeedback(false)}
+                                        >
+                                            Try again later
+                                        </Button>
+                                    </div>
+                                </CardFooter>
+                            </Card>
+                        </div>
+                    )
+                }
+
+                {/* Urge Surfing Timer Overlay */}
+                {
+                    isTimerOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-500">
+                            <Card className="w-full max-w-lg border-none shadow-2xl bg-white/95 overflow-hidden">
+                                <div className="h-1.5 w-full bg-healing-100">
+                                    <div
+                                        className="h-full bg-healing-500 transition-all duration-1000 ease-linear"
+                                        style={{ width: `${(timeLeft / 300) * 100}%` }}
+                                    />
+                                </div>
+                                <CardHeader className="text-center pt-8">
+                                    <div className="mx-auto bg-healing-50 p-4 rounded-full w-fit mb-2">
+                                        <Wind className={`h-8 w-8 text-healing-600 ${isTimerRunning ? 'animate-pulse' : ''}`} />
+                                    </div>
+                                    <CardTitle className="text-3xl font-bold text-healing-900">Urge Surfing</CardTitle>
+                                    <div className="py-4">
+                                        <h1 className="text-6xl font-mono font-bold text-healing-600 tracking-tighter">
+                                            {Math.floor(timeLeft / 60)}:
+                                            {(timeLeft % 60).toString().padStart(2, "0")}
+                                        </h1>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="text-center space-y-6 pb-8">
+                                    <div className="space-y-2">
+                                        <p className="text-xl text-gray-800 font-medium">
+                                            You don’t need to do anything right now.
+                                        </p>
+                                        <p className="text-gray-600">
+                                            Just stay here and breathe. Waiting is enough.
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-healing-50/50 p-6 rounded-2xl border border-healing-100">
+                                        <p className="text-healing-800 italic animate-in fade-in slide-in-from-bottom-2 duration-1000">
+                                            Notice the urge without fighting it. <br />
+                                            Like a wave, it will rise and fall.
+                                        </p>
+                                    </div>
+
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                        <p>Inhale slowly for 4 seconds…</p>
+                                        <p>Exhale gently for 6 seconds…</p>
+                                    </div>
+
+                                    {timeLeft === 0 && !isTimerRunning && (
+                                        <div className="pt-4 space-y-4 animate-in zoom-in-95 duration-500">
+                                            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                                                <p className="text-emerald-800 font-bold">
+                                                    You stayed with the urge. That matters.
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <p className="font-medium text-gray-900">Did waiting help even a little?</p>
+                                                <div className="flex gap-3">
+                                                    <Button
+                                                        className="flex-1 bg-healing-600 hover:bg-healing-700 text-white"
+                                                        onClick={() => {
+                                                            confirmHelpful('urge-surfing');
+                                                            setIsTimerOpen(false);
+                                                        }}
+                                                    >
+                                                        Yes, it helped
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        className="flex-1"
+                                                        onClick={() => {
+                                                            toast.info("Thank you for trying. Every minute counts.");
+                                                            setIsTimerOpen(false);
+                                                        }}
+                                                    >
+                                                        Not really
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                                <CardFooter className="bg-gray-50/50 border-t flex justify-center py-4">
+                                    <Button
+                                        variant="ghost"
+                                        className="text-muted-foreground"
+                                        onClick={() => {
+                                            setIsTimerRunning(false);
+                                            setIsTimerOpen(false);
+                                        }}
+                                    >
+                                        {timeLeft === 0 ? "Close" : "I'll come back later"}
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        </div>
+                    )}
             </div>
         </AppLayout>
     );

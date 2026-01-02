@@ -172,6 +172,12 @@ export const authAPI = {
     logout: () => {
         removeAuthToken();
     },
+    updateProgress: async (moduleId: string) => {
+        return apiRequest('/auth/update-progress', {
+            method: 'POST',
+            body: JSON.stringify({ moduleId }),
+        });
+    },
 };
 
 // Mood API
