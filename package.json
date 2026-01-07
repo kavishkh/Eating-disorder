@@ -1,28 +1,19 @@
 {
   "name": "vite_react_shadcn_ts",
-  "version": "0.0.0",
   "private": true,
-  "description": "A supportive, non-judgmental AI assistant designed to help users navigate eating disorder recovery, reduce urges, and manage difficult emotions in real-time.",
-  "homepage": "https://github.com/kavishkh/Eating-disorder#readme",
-  "bugs": {
-    "url": "https://github.com/kavishkh/Eating-disorder/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/kavishkh/Eating-disorder.git"
-  },
-  "license": "ISC",
-  "author": "",
+  "version": "0.0.0",
   "type": "module",
-  "main": "eslint.config.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"npm run server\" \"vite\"",
     "client": "vite",
     "server": "nodemon server/index.js",
     "build": "npx vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -113,8 +104,5 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.21"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }

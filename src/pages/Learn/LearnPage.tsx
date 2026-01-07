@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { authAPI } from "@/utils/api";
 import { copingTools } from "@/data/copingTools";
+import { distractions } from "@/data/distractions";
 
 const LearnPage = () => {
     const { currentUser, updateUserProfile } = useAuth();
@@ -44,6 +45,12 @@ const LearnPage = () => {
     const [isTimerOpen, setIsTimerOpen] = useState(false);
     const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
     const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+    // Distraction vs. Suppression State
+    const [selectedDistraction, setSelectedDistraction] = useState<string | null>(null);
+    const [distractionTimerActive, setDistractionTimerActive] = useState(false);
+    const [distractionTimeLeft, setDistractionTimeLeft] = useState(900); // 15 minutes
+    const [showDistractionFeedback, setShowDistractionFeedback] = useState(false);
 
     const totalModules = 10; // Increased count to include Urge Surfing
     const completedModules = currentUser?.completedModules || [];
@@ -65,6 +72,24 @@ const LearnPage = () => {
         return () => clearInterval(interval);
     }, [isTimerRunning, timeLeft]);
 
+    // Distraction Timer Logic
+    useEffect(() => {
+        if (!distractionTimerActive) return;
+
+        if (distractionTimeLeft === 0) {
+            setDistractionTimerActive(false);
+            setShowDistractionFeedback(true);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setDistractionTimeLeft(prev => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [distractionTimerActive, distractionTimeLeft]);
+
+
     const startUrgeSurfing = () => {
         setIsTimerOpen(true);
         setTimeLeft(300);
@@ -79,6 +104,26 @@ const LearnPage = () => {
             setActivePractice(type);
             setSelectedSense(null); // Reset sense selection when starting a practice
         }
+    };
+
+    const startDistraction = (id: string) => {
+        setSelectedDistraction(id);
+        setDistractionTimeLeft(900); // reset to 15 min
+        setDistractionTimerActive(true);
+        setShowDistractionFeedback(false);
+    };
+
+    const handleDistractionFeedback = async (helped: boolean) => {
+        setShowDistractionFeedback(false);
+        setSelectedDistraction(null);
+        setDistractionTimerActive(false);
+
+        if (!helped) {
+            toast.info("No problem. Sometimes we just need a different approach.");
+            return;
+        }
+
+        await confirmHelpful("distraction-vs-suppression");
     };
 
     const playGuide = (src: string) => {
@@ -619,17 +664,121 @@ const LearnPage = () => {
                                 })}
                             </div>
 
-                            <div className="bg-slate-900 text-white rounded-3xl p-8 text-center flex flex-col items-center justify-center space-y-4">
-                                <h3 className="text-xl font-bold">Distraction vs. Suppression</h3>
-                                <p className="max-w-xl text-slate-300">
-                                    Suppression is fighting the thought (making it stronger). Distraction is acknowledging the thought and gently shifting focus elsewhere for 15-20 minutes.
-                                </p>
-                                <div className="flex flex-wrap gap-2 justify-center">
-                                    {['Coloring', 'Walking', 'Puzzles', 'Music', 'Reading', 'Call a friend'].map(item => (
-                                        <Badge key={item} variant="secondary" className="bg-slate-800 text-slate-200 border-slate-700">
-                                            {item}
-                                        </Badge>
-                                    ))}
+                            <div className="bg-slate-900 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden transition-all duration-500">
+                                <div className="absolute -top-24 -right-24 h-64 w-64 bg-healing-500/10 rounded-full blur-3xl"></div>
+                                <div className="absolute -bottom-24 -left-24 h-64 w-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+
+                                <div className="relative z-10 space-y-6">
+                                    <div className="text-center space-y-2">
+                                        <h3 className="text-2xl font-bold tracking-tight">Distraction vs. Suppression</h3>
+                                        <p className="max-w-xl mx-auto text-slate-300 text-sm leading-relaxed">
+                                            Suppression is fighting the thought (which often makes it stronger). Distraction is acknowledging the thought and gently shifting focus elsewhere for 15-20 minutes.
+                                        </p>
+                                    </div>
+
+                                    {!distractionTimerActive && !showDistractionFeedback && (
+                                        <div className="space-y-6 animate-in fade-in duration-500">
+                                            <div className="text-center">
+                                                <p className="text-healing-400 font-semibold text-sm uppercase tracking-wider mb-4">Choose a gentle distraction</p>
+                                                <div className="flex flex-wrap gap-3 justify-center">
+                                                    {distractions.map(item => (
+                                                        <Button
+                                                            key={item.id}
+                                                            variant="outline"
+                                                            onClick={() => startDistraction(item.id)}
+                                                            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-healing-600 hover:text-white hover:border-healing-500 transition-all rounded-xl py-6 px-6"
+                                                        >
+                                                            {item.label}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-center text-slate-400 italic">
+                                                “You don’t need to fight the thought. Gently shifting focus is enough.”
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {distractionTimerActive && (
+                                        <div className="bg-slate-800/50 backdrop-blur-sm p-8 rounded-3xl border border-slate-700 text-center space-y-6 animate-in zoom-in-95 duration-500">
+                                            <div className="space-y-2">
+                                                <p className="text-slate-300">You chose <span className="text-healing-400 font-bold uppercase tracking-wider">{distractions.find(d => d.id === selectedDistraction)?.label}</span></p>
+                                                <p className="text-sm text-slate-400 max-w-md mx-auto">
+                                                    You don’t need to push the thought away — just let it be while you focus on this.
+                                                </p>
+                                            </div>
+
+                                            <div className="relative h-48 w-48 mx-auto flex items-center justify-center">
+                                                <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 100 100">
+                                                    <circle
+                                                        cx="50"
+                                                        cy="50"
+                                                        r="45"
+                                                        fill="transparent"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        className="text-slate-700"
+                                                    />
+                                                    <circle
+                                                        cx="50"
+                                                        cy="50"
+                                                        r="45"
+                                                        fill="transparent"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                        strokeDasharray={2 * Math.PI * 45}
+                                                        strokeDashoffset={2 * Math.PI * 45 * (1 - distractionTimeLeft / 900)}
+                                                        strokeLinecap="round"
+                                                        className="text-healing-500 transition-all duration-1000 ease-linear"
+                                                    />
+                                                </svg>
+                                                <h1 className="text-5xl font-mono font-bold tracking-tighter text-white">
+                                                    {Math.floor(distractionTimeLeft / 60)}:
+                                                    {(distractionTimeLeft % 60).toString().padStart(2, "0")}
+                                                </h1>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <p className="text-xs text-slate-400 italic">
+                                                    Even staying a few minutes counts. You can stop anytime.
+                                                </p>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => setDistractionTimerActive(false)}
+                                                    className="text-slate-400 hover:text-white hover:bg-slate-700"
+                                                >
+                                                    Stop early (that's okay too)
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {showDistractionFeedback && (
+                                        <div className="bg-healing-900 border border-healing-800 p-8 rounded-3xl text-center space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                                            <div className="bg-healing-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2">
+                                                <Heart className="text-healing-400 fill-healing-400 h-8 w-8" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <h4 className="text-xl font-bold">Checking in...</h4>
+                                                <p className="text-healing-100 italic">Did this help even a little? Gently shifting focus can be a powerful tool.</p>
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                                                <Button
+                                                    onClick={() => handleDistractionFeedback(true)}
+                                                    className="bg-healing-500 hover:bg-healing-600 text-white font-bold py-6 px-8 rounded-2xl shadow-lg transition-all hover:scale-105"
+                                                >
+                                                    Yes, it helped
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleDistractionFeedback(false)}
+                                                    className="text-healing-300 hover:text-white hover:bg-healing-800/50 py-6 px-8 rounded-2xl"
+                                                >
+                                                    Not really
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </TabsContent>

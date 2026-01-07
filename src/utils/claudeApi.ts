@@ -36,7 +36,8 @@ export const checkApiKeyExists = (): boolean => {
 
 export const sendMessageToClaude = async (
   messages: { sender: "user" | "ai"; content: string }[],
-  userId?: string
+  userId?: string,
+  chatId?: string
 ): Promise<string> => {
   const apiKey = getApiKey();
 
@@ -73,19 +74,24 @@ export const sendMessageToClaude = async (
     }
 
     const data = await response.json();
+
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      throw new Error("Invalid response format from Claude API");
+    }
+
     const responseText = data.content[0].text;
 
-    // Store the conversation if userId is provided using our new backend API
-    if (userId) {
+    // Store the conversation if userId AND chatId are provided using our new backend API
+    if (userId && chatId) {
       // Store the last user message
       const lastUserMessage = messages.filter(msg => msg.sender === "user").pop();
 
       if (lastUserMessage) {
         try {
           // Save user message
-          await chatAPI.saveMessage(lastUserMessage.content, true);
+          await chatAPI.saveMessage(lastUserMessage.content, true, chatId);
           // Save AI response
-          await chatAPI.saveMessage(responseText, false);
+          await chatAPI.saveMessage(responseText, false, chatId);
         } catch (err) {
           console.error("Failed to save chat history to backend:", err);
           // We don't fail the whole request if saving history fails
